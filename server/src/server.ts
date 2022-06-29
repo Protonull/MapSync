@@ -303,6 +303,10 @@ async function fetchHasJoined(
     username: string,
     shaHex: string
 ) {
+    // if auth is disabled, return a "usable" item
+    if (process.env["DISABLE_AUTH"] === "true")
+        return { name: username, uuid: `AUTH-DISABLED-${username}` }
+
     return await fetch(`https://sessionserver.mojang.com/session/minecraft/hasJoined?username=${username}&serverId=${shaHex}`)
         .then((res) => {
             if (res.status === 204) {
