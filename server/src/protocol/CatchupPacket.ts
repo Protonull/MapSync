@@ -1,4 +1,4 @@
-import { CatchupChunk } from "../Catchup";
+import { CatchupChunk } from "./structs";
 import { BufWriter } from "../deps/buffers";
 
 export interface CatchupPacket {
