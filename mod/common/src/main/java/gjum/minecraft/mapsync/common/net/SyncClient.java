@@ -1,6 +1,7 @@
 package gjum.minecraft.mapsync.common.net;
 
 import com.mojang.authlib.exceptions.AuthenticationException;
+import gjum.minecraft.mapsync.common.Constants;
 import gjum.minecraft.mapsync.common.data.ChunkTile;
 import gjum.minecraft.mapsync.common.net.encryption.EncryptionDecoder;
 import gjum.minecraft.mapsync.common.net.encryption.EncryptionEncoder;
@@ -129,7 +130,7 @@ public class SyncClient {
 				if (future.isSuccess()) {
 					logger.info("[map-sync] Connected to " + address);
 					channelFuture.channel().writeAndFlush(new CHandshake(
-							getMod().getVersion(),
+							Constants.VERSION,
 							Minecraft.getInstance().getUser().getName(),
 							gameAddress,
 							getMod().getDimensionState().dimension.location().toString()));

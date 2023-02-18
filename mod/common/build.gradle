@@ -9,6 +9,12 @@ dependencies {
 	modCompileOnly files("../libs/voxelmap-1.18.2-1.11.2.jar")
 }
 
+processResources {
+	filesMatching("constants.properties") {
+		expand "version": rootProject.mod_version
+	}
+}
+
 architectury {
 	common(rootProject.enabled_platforms.split(","))
 }

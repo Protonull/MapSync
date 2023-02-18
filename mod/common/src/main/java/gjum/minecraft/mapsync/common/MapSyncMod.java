@@ -23,7 +23,6 @@ import java.util.stream.Collectors;
 import static gjum.minecraft.mapsync.common.Cartography.chunkTileFromLevel;
 
 public abstract class MapSyncMod {
-	public static final String VERSION = "${version}";
 
 	private static final Minecraft mc = Minecraft.getInstance();
 
@@ -63,14 +62,11 @@ public abstract class MapSyncMod {
 		INSTANCE = this;
 	}
 
-	/**
-	 * for example: 1.0.0+forge
-	 */
-	public abstract String getVersion();
-
 	public abstract void registerKeyBinding(KeyMapping mapping);
 
 	public void init() {
+		logger.info("MapSync version: " + Constants.VERSION); // Sneaky sneak initialiser
+
 		registerKeyBinding(openGuiKey);
 
 		modConfig = ModConfig.load();
