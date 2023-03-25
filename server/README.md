@@ -1,0 +1,3 @@
+# MapSync Server
+
+Coming soon™
