@@ -1,0 +1,23 @@
+EXE_NAME := "civmap-render"
+BUILD_FOLDER := "renderer"
+
+default:
+    just --list
+
+# Fully cleans up the project.
+clean:
+    cargo clean
+
+# Compiles the renderer
+build:
+    cargo build
+    if [ ! -d "{{ BUILD_FOLDER }}" ]; then mkdir "{{ BUILD_FOLDER }}"; fi
+    cp "target/debug/{{ EXE_NAME }}" "{{ BUILD_FOLDER }}/{{ EXE_NAME }}"
+
+# Renders a given tile.
+run tileX tileZ tilesDir:
+    cd "{{ BUILD_FOLDER }}" && ./"{{ EXE_NAME }}" "{{ tileX }}" "{{ tileZ }}" "{{ tilesDir }}"
+
+# Task for Github Workflow to package for a new release.
+package-for-release: clean
+    cargo build --release --verbose

@@ -1,0 +1,18 @@
+default:
+    just --list
+
+# Fully cleans up the project.
+clean:
+    ./gradlew clean
+
+# Compiles the mod.
+build:
+    ./gradlew clean assemble
+
+# Compiles and runs the Fabric version of the mod.
+run:
+    ./gradlew --no-daemon --console=plain clean :fabric:runClient
+
+# Task for Github Workflow to package for a new release.
+package-for-release:
+    ./gradlew --no-daemon --console=plain --no-build-cache clean build

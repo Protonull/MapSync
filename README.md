@@ -26,6 +26,10 @@ Every time any of your friends load a chunk with MapSync installed (even if they
 
 Map-Sync tracks a timestamp per chunk, so old data will never overwrite newer data.
 
+## Development
+
+This project uses [Just](https://github.com/casey/just) for easy commands between the different subprojects.
+
 ---
 
 Copyright (C) 2022 Map-Sync contributors

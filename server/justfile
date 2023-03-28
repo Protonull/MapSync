@@ -1,0 +1,23 @@
+default:
+    just --list
+
+# Fully cleans up the project. You'll need to run "yarn" afterwards.
+clean:
+    rm -rf ./node_modules/
+    rm -rf ./dist/
+
+# Compiles the TypeScript server code into JavaScript.
+build:
+    yarn tsc --build --clean
+    yarn tsc
+
+# Compiles and runs the server with development settings.
+dev: build
+    DISABLE_AUTH=true node --inspect -r source-map-support/register dist/main.js
+
+# Runs the compiled server.
+run:
+    node dist/main.js
+
+# Task for Github Workflow to package for a new release.
+package-for-release: build
