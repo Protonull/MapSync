@@ -1,8 +1,7 @@
 package gjum.minecraft.mapsync.common;
 
 import gjum.minecraft.mapsync.common.data.ChunkTile;
-import gjum.minecraft.mapsync.common.integration.JourneyMapHelper;
-import gjum.minecraft.mapsync.common.integration.VoxelMapHelper;
+import gjum.minecraft.mapsync.common.hooks.IntegrationHelpers;
 import net.minecraft.client.Minecraft;
 import org.jetbrains.annotations.NotNull;
 
@@ -55,7 +54,7 @@ public class RenderQueue {
 					return; // world closed; all queued chunks can't be rendered
 				}
 
-				if (!JourneyMapHelper.isMapping() && !VoxelMapHelper.isMapping()) {
+				if (!IntegrationHelpers.areAnyMappingHooksReady()) {
 					debugLog("render is waiting til map mod is ready");
 					Thread.sleep(1000);
 					continue;
@@ -74,12 +73,11 @@ public class RenderQueue {
 					// don't overwrite newer data with older data
 					debugLog("skipping render outdated " + chunkTile.chunkPos());
 				} else {
-					boolean voxelRendered = VoxelMapHelper.updateWithChunkTile(chunkTile);
-					boolean renderedJM = JourneyMapHelper.updateWithChunkTile(chunkTile);
+					final boolean rendered = IntegrationHelpers.updateHooksWithChunkTile(chunkTile);
 
-					debugLog("rendered? " + (voxelRendered||renderedJM) + " " + chunkTile.chunkPos() + " queue=" + queue.size());
+					debugLog("rendered? " + rendered + " " + chunkTile.chunkPos() + " queue=" + this.queue.size());
 
-					if (renderedJM || voxelRendered) {
+					if (rendered) {
 						dimensionState.setChunkTimestamp(chunkTile.chunkPos(), chunkTile.timestamp());
 					} // otherwise, update this chunk again when server sends it again
 				}
@@ -99,6 +97,6 @@ public class RenderQueue {
 	}
 
 	public static boolean areAllMapModsMapping() {
-		return JourneyMapHelper.isMapping();
+		return IntegrationHelpers.JOURNEYMAP_HOOK.isMapping();
 	}
 }
