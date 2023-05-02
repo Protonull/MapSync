@@ -1,34 +1,27 @@
 {
-	"name": "civmap-server",
-	"version": "SNAPSHOT",
-	"private": true,
-	"author": "Gjum",
-	"license": "GPL-3.0-only",
-	"scripts": {
-		"build": "tsc",
-		"test": "true",
-		"start": "node -r source-map-support/register dist/main.js",
-		"start:dev": "tsc && node -r source-map-support/register dist/main.js"
-	},
-	"dependencies": {
-		"async-mutex": "^0.4.0",
-		"dotenv": "^16.0.3",
-		"node-fetch": "^2.6.7",
-		"source-map-support": "^0.5.21",
-		"sqlite3": "^5.1.5",
-		"typeorm": "^0.3.6"
-	},
-	"devDependencies": {
-		"@types/node": "^18.11.18",
-		"@types/node-fetch": "^2.6.2",
-		"@types/sqlite3": "^3.1.8",
-		"typescript": "^5.0.4"
-	},
-	"prettier": {
-		"useTabs": true,
-		"tabWidth": 2,
-		"trailingComma": "all",
-		"singleQuote": true,
-		"semi": false
-	}
+    "name": "civmap-server",
+    "version": "SNAPSHOT",
+    "private": true,
+    "author": "Gjum",
+    "license": "GPL-3.0-only",
+    "scripts": {
+        "build": "tsc",
+        "test": "true",
+        "start": "node -r source-map-support/register dist/main.js",
+        "start:dev": "tsc && node -r source-map-support/register dist/main.js"
+    },
+    "dependencies": {
+        "async-mutex": "^0.4.0",
+        "dotenv": "^16.0.3",
+        "node-fetch": "^2.6.7",
+        "source-map-support": "^0.5.21",
+        "sqlite3": "^5.1.5",
+        "typeorm": "^0.3.6"
+    },
+    "devDependencies": {
+        "@types/node": "^18.11.18",
+        "@types/node-fetch": "^2.6.2",
+        "@types/sqlite3": "^3.1.8",
+        "typescript": "^5.0.4"
+    }
 }
