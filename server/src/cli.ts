@@ -95,32 +95,32 @@ async function handle_input(input: string): Promise<void> {
         if (extras.length === 0)
             throw new Error("Did not provide UUID to whitelist");
         const uuid = extras;
-        await metadata.whitelist_add(uuid);
+        metadata.whitelist.add(uuid);
         await metadata.whitelist_save();
     }
     else if (command === "whitelist_add_ign") {
         if (extras.length === 0)
             throw new Error("Did not provide UUID to whitelist");
         const ign = extras;
-        const uuid = metadata.uuid_cache_lookup(ign);
+        const uuid = metadata.uuid_cache.get(ign) ?? null;
         if (uuid == null) throw new Error("No cached UUID for IGN " + ign);
-        await metadata.whitelist_add(uuid);
+        metadata.whitelist.add(uuid);
         await metadata.whitelist_save();
     }
     else if (command === "whitelist_remove") {
         if (extras.length === 0)
             throw new Error("Did not provide UUID to whitelist");
         const uuid = extras;
-        await metadata.whitelist_remove(uuid);
+        metadata.whitelist.delete(uuid);
         await metadata.whitelist_save();
     }
     else if (command === "whitelist_remove_ign") {
         if (extras.length === 0)
             throw new Error("Did not provide UUID to whitelist");
         const ign = extras;
-        const uuid = metadata.uuid_cache_lookup(ign);
+        const uuid = metadata.uuid_cache.get(ign) ?? null;
         if (uuid == null) throw new Error("No cached UUID for IGN " + ign);
-        await metadata.whitelist_remove(uuid);
+        metadata.whitelist.delete(uuid);
         await metadata.whitelist_save();
     }
     else {

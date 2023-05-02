@@ -16,7 +16,8 @@
         "node-fetch": "^2.6.7",
         "source-map-support": "^0.5.21",
         "sqlite3": "^5.1.5",
-        "typeorm": "^0.3.6"
+        "typeorm": "^0.3.6",
+        "zod": "^3.21.4"
     },
     "devDependencies": {
         "@types/node": "^18.11.18",

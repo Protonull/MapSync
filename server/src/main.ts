@@ -1,14 +1,26 @@
 import "./cli";
 import { connectDB } from "./db";
 import { PlayerChunk, PlayerChunkDB } from "./MapChunk";
-import { uuid_cache_store, getConfig, whitelist_check } from "./metadata";
+import * as metadata from "./metadata";
 import { ClientPacket } from "./protocol";
 import { CatchupRequestPacket } from "./protocol/CatchupRequestPacket";
 import { ChunkTilePacket } from "./protocol/ChunkTilePacket";
 import { TcpClient, TcpServer } from "./server";
 import { RegionCatchupPacket } from "./protocol/RegionCatchupPacket";
 
-connectDB().then(() => new Main());
+let config: metadata.Config = null!;
+Promise.resolve().then(async () => {
+    await connectDB();
+
+    config = await metadata.getConfig();
+
+    // These two are only used if whitelist is enabled... but best to load them
+    // anyway lest there be a modification to them that is then saved.
+    await metadata.whitelist_load();
+    await metadata.uuid_cache_load();
+
+    new Main();
+});
 
 type ProtocolClient = TcpClient; // TODO cleanup
 
@@ -21,10 +33,11 @@ export class Main {
     async handleClientAuthenticated(client: ProtocolClient) {
         if (!client.uuid) throw new Error("Client not authenticated");
 
-        uuid_cache_store(client.mcName!, client.uuid);
+        metadata.uuid_cache.set(client.mcName!, client.uuid);
+        await metadata.uuid_cache_save();
 
-        if ((await getConfig()).whitelist) {
-            if (!whitelist_check(client.uuid)) {
+        if (config.whitelist) {
+            if (!metadata.whitelist.has(client.uuid)) {
                 client.log(
                     `Rejected unwhitelisted user ${client.mcName} (${client.uuid})`
                 );
