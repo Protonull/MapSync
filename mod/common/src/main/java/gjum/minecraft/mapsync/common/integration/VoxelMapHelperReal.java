@@ -4,6 +4,7 @@ import com.mamiyaotaru.voxelmap.interfaces.AbstractVoxelMap;
 import com.mamiyaotaru.voxelmap.persistent.*;
 import gjum.minecraft.mapsync.common.data.BlockInfo;
 import gjum.minecraft.mapsync.common.data.ChunkTile;
+import gjum.minecraft.mapsync.common.utilities.Shortcuts;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.material.Material;
@@ -14,8 +15,6 @@ import java.lang.reflect.*;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
-
-import static gjum.minecraft.mapsync.common.Utils.getBiomeRegistry;
 
 public class VoxelMapHelperReal {
 	// TODO use mixins to access package-/private fields/methods
@@ -89,7 +88,7 @@ public class VoxelMapHelperReal {
 				int x0 = (chunkTile.x() * 16) & 0xff;
 				int z0 = (chunkTile.z() * 16) & 0xff;
 
-				var biomeReg = getBiomeRegistry();
+				var biomeReg = Shortcuts.getBiomeRegistry();
 
 				int i = 0;
 				for (int z = z0; z < z0 + 16; ++z) {

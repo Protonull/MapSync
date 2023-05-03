@@ -1,5 +1,6 @@
 package gjum.minecraft.mapsync.common.mixins;
 
+import gjum.minecraft.mapsync.common.utilities.ErrorRateLimiting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.core.BlockPos;
@@ -10,7 +11,6 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import static gjum.minecraft.mapsync.common.MapSyncMod.getMod;
-import static gjum.minecraft.mapsync.common.Utils.printErrorRateLimited;
 
 @Mixin(ClientPacketListener.class)
 public abstract class MixinClientPacketListener {
@@ -21,7 +21,7 @@ public abstract class MixinClientPacketListener {
 		try {
 			getMod().handleConnectedToServer(packet);
 		} catch (Throwable e) {
-			printErrorRateLimited(e);
+			ErrorRateLimiting.printRateLimitedError(e);
 		}
 	}
 
@@ -31,7 +31,7 @@ public abstract class MixinClientPacketListener {
 		try {
 			getMod().handleRespawn(packet);
 		} catch (Throwable e) {
-			printErrorRateLimited(e);
+			ErrorRateLimiting.printRateLimitedError(e);
 		}
 	}
 
@@ -41,7 +41,7 @@ public abstract class MixinClientPacketListener {
 		try {
 			getMod().handleMcFullChunk(packet.getX(), packet.getZ());
 		} catch (Throwable e) {
-			printErrorRateLimited(e);
+			ErrorRateLimiting.printRateLimitedError(e);
 		}
 	}
 
@@ -53,7 +53,7 @@ public abstract class MixinClientPacketListener {
 			BlockPos pos = packet.getPos();
 			getMod().handleMcChunkPartialChange(pos.getX() >> 4, pos.getZ() >> 4);
 		} catch (Throwable e) {
-			printErrorRateLimited(e);
+			ErrorRateLimiting.printRateLimitedError(e);
 		}
 	}
 
@@ -64,7 +64,7 @@ public abstract class MixinClientPacketListener {
 			BlockPos pos = packet.getPos();
 			getMod().handleMcChunkPartialChange(pos.getX() >> 4, pos.getZ() >> 4);
 		} catch (Throwable e) {
-			printErrorRateLimited(e);
+			ErrorRateLimiting.printRateLimitedError(e);
 		}
 	}
 
@@ -75,7 +75,7 @@ public abstract class MixinClientPacketListener {
 			BlockPos pos = packet.pos();
 			getMod().handleMcChunkPartialChange(pos.getX() >> 4, pos.getZ() >> 4);
 		} catch (Throwable e) {
-			printErrorRateLimited(e);
+			ErrorRateLimiting.printRateLimitedError(e);
 		}
 	}
 }

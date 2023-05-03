@@ -21,12 +21,12 @@ public class CEncryptionResponse extends Packet {
 	}
 
 	public static Packet read(ByteBuf buf) {
-		return new CEncryptionResponse(readByteArray(buf), readByteArray(buf));
+		return new CEncryptionResponse(Packet.readByteArray(buf), Packet.readByteArray(buf));
 	}
 
 	@Override
 	public void write(ByteBuf out) {
-		writeByteArray(out, sharedSecret);
-		writeByteArray(out, verifyToken);
+		Packet.writeByteArray(out, sharedSecret);
+		Packet.writeByteArray(out, verifyToken);
 	}
 }

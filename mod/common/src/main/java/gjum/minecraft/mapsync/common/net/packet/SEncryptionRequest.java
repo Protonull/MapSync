@@ -24,18 +24,18 @@ public class SEncryptionRequest extends Packet {
 	public static Packet read(ByteBuf buf) {
 		return new SEncryptionRequest(
 				readKey(buf),
-				readByteArray(buf));
+				Packet.readByteArray(buf));
 	}
 
 	@Override
 	public void write(ByteBuf buf) {
-		writeByteArray(buf, publicKey.getEncoded());
-		writeByteArray(buf, verifyToken);
+		Packet.writeByteArray(buf, publicKey.getEncoded());
+		Packet.writeByteArray(buf, verifyToken);
 	}
 
 	protected static PublicKey readKey(ByteBuf in) {
 		try {
-			byte[] encodedKey = readByteArray(in);
+			byte[] encodedKey = Packet.readByteArray(in);
 			X509EncodedKeySpec keySpec = new X509EncodedKeySpec(encodedKey);
 			KeyFactory keyFactory = KeyFactory.getInstance("RSA");
 			return keyFactory.generatePublic(keySpec);

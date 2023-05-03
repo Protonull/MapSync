@@ -1,6 +1,5 @@
 package gjum.minecraft.mapsync.common.net.packet;
 
-import gjum.minecraft.mapsync.common.Utils;
 import gjum.minecraft.mapsync.common.data.RegionTimestamp;
 import gjum.minecraft.mapsync.common.net.Packet;
 import io.netty.buffer.ByteBuf;
@@ -26,7 +25,7 @@ public class SRegionTimestamps extends Packet {
   }
 
   public static Packet read(ByteBuf buf) {
-    String dimension = Utils.readStringFromBuf(buf);
+    String dimension = Packet.readString(buf);
 
     short totalRegions = buf.readShort();
     RegionTimestamp[] timestamps = new RegionTimestamp[totalRegions];

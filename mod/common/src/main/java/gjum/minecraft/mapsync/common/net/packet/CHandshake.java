@@ -4,9 +4,6 @@ import gjum.minecraft.mapsync.common.net.Packet;
 import io.netty.buffer.ByteBuf;
 import org.jetbrains.annotations.NotNull;
 
-import static gjum.minecraft.mapsync.common.Utils.readStringFromBuf;
-import static gjum.minecraft.mapsync.common.Utils.writeStringToBuf;
-
 public class CHandshake extends Packet {
 	public static final int PACKET_ID = 1;
 
@@ -24,10 +21,10 @@ public class CHandshake extends Packet {
 
 	@Override
 	public void write(ByteBuf out) {
-		writeStringToBuf(out, modVersion);
-		writeStringToBuf(out, username);
-		writeStringToBuf(out, gameAddress);
-		writeStringToBuf(out, dimension);
+		Packet.writeString(out, modVersion);
+		Packet.writeString(out, username);
+		Packet.writeString(out, gameAddress);
+		Packet.writeString(out, dimension);
 	}
 
 	@Override

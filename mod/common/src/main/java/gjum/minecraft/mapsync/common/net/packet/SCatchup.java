@@ -11,8 +11,6 @@ import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.List;
 
-import static gjum.minecraft.mapsync.common.Utils.readStringFromBuf;
-
 public class SCatchup extends Packet {
 	public static final int PACKET_ID = 5;
 
@@ -26,7 +24,7 @@ public class SCatchup extends Packet {
 	}
 
 	public static Packet read(ByteBuf buf) {
-		String dimensionStr = readStringFromBuf(buf);
+		String dimensionStr = Packet.readString(buf);
 		var dimension = ResourceKey.create(Registry.DIMENSION_REGISTRY, new ResourceLocation(dimensionStr));
 
 		int length = buf.readInt();

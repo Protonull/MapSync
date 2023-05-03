@@ -1,6 +1,5 @@
 package gjum.minecraft.mapsync.common.net.packet;
 
-import gjum.minecraft.mapsync.common.Utils;
 import gjum.minecraft.mapsync.common.data.RegionPos;
 import gjum.minecraft.mapsync.common.net.Packet;
 import io.netty.buffer.ByteBuf;
@@ -20,7 +19,7 @@ public class CRegionCatchup extends Packet {
 
   @Override
   public void write(ByteBuf buf) {
-    Utils.writeStringToBuf(buf, dimension);
+    Packet.writeString(buf, dimension);
     buf.writeShort(regions.size());
     for (var region : regions) {
       buf.writeShort(region.x());

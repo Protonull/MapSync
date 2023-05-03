@@ -5,6 +5,7 @@ import gjum.minecraft.mapsync.common.data.ChunkTile;
 import gjum.minecraft.mapsync.common.net.encryption.EncryptionDecoder;
 import gjum.minecraft.mapsync.common.net.encryption.EncryptionEncoder;
 import gjum.minecraft.mapsync.common.net.packet.*;
+import gjum.minecraft.mapsync.common.utilities.SHA1;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -244,16 +245,10 @@ public class SyncClient {
 			byte[] sharedSecret = new byte[16];
 			ThreadLocalRandom.current().nextBytes(sharedSecret);
 
-			String shaHex;
-			try {
-				MessageDigest digest = MessageDigest.getInstance("SHA-1");
+			String shaHex = HexFormat.of().formatHex(SHA1.hash((digest) -> {
 				digest.update(sharedSecret);
 				digest.update(packet.publicKey.getEncoded());
-				// note that this is different from minecraft (we get no negative hashes)
-				shaHex = HexFormat.of().formatHex(digest.digest());
-			} catch (NoSuchAlgorithmException e) {
-				throw new RuntimeException(e);
-			}
+			}));
 
 			User session = Minecraft.getInstance().getUser();
 			Minecraft.getInstance().getMinecraftSessionService().joinServer(

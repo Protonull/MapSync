@@ -9,8 +9,6 @@ import net.minecraft.world.level.Level;
 import javax.annotation.Nonnull;
 import java.util.List;
 
-import static gjum.minecraft.mapsync.common.Utils.writeStringToBuf;
-
 public class CCatchupRequest extends Packet {
 	public static final int PACKET_ID = 6;
 
@@ -36,7 +34,7 @@ public class CCatchupRequest extends Packet {
 
 	@Override
 	public void write(ByteBuf buf) {
-		writeStringToBuf(buf, chunks.get(0).dimension().location().toString());
+		Packet.writeString(buf, chunks.get(0).dimension().location().toString());
 		buf.writeInt(chunks.size());
 		for (CatchupChunk chunk : chunks) {
 			buf.writeInt(chunk.chunk_x());
