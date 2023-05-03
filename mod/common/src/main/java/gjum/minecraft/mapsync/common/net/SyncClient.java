@@ -1,6 +1,7 @@
 package gjum.minecraft.mapsync.common.net;
 
 import com.mojang.authlib.exceptions.AuthenticationException;
+import dev.architectury.platform.Platform;
 import gjum.minecraft.mapsync.common.Constants;
 import gjum.minecraft.mapsync.common.data.ChunkTile;
 import gjum.minecraft.mapsync.common.net.encryption.EncryptionDecoder;
@@ -246,14 +247,15 @@ public class SyncClient {
 			byte[] sharedSecret = new byte[16];
 			ThreadLocalRandom.current().nextBytes(sharedSecret);
 
-			String shaHex = HexFormat.of().formatHex(SHA1.hash((digest) -> {
-				digest.update(sharedSecret);
-				digest.update(packet.publicKey.getEncoded());
-			}));
-
-			User session = Minecraft.getInstance().getUser();
-			Minecraft.getInstance().getMinecraftSessionService().joinServer(
-					session.getGameProfile(), session.getAccessToken(), shaHex);
+			if (!Platform.isDevelopmentEnvironment()) {
+				final String shaHex = HexFormat.of().formatHex(SHA1.hash((digest) -> {
+					digest.update(sharedSecret);
+					digest.update(packet.publicKey.getEncoded());
+				}));
+				final User session = Minecraft.getInstance().getUser();
+				Minecraft.getInstance().getMinecraftSessionService().joinServer(
+						session.getGameProfile(), session.getAccessToken(), shaHex);
+			}
 
 			try {
 				ctx.channel().writeAndFlush(new CEncryptionResponse(
