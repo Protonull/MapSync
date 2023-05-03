@@ -1,6 +1,5 @@
 import "./cli";
-import { connectDB } from "./db";
-import { PlayerChunk, PlayerChunkDB } from "./MapChunk";
+import * as database from "./database";
 import * as metadata from "./metadata";
 import { ClientPacket } from "./protocol";
 import { CatchupRequestPacket } from "./protocol/CatchupRequestPacket";
@@ -10,7 +9,7 @@ import { RegionCatchupPacket } from "./protocol/RegionCatchupPacket";
 
 let config: metadata.Config = null!;
 Promise.resolve().then(async () => {
-    await connectDB();
+    await database.setup();
 
     config = await metadata.getConfig();
 
@@ -48,7 +47,7 @@ export class Main {
 
         // TODO check version, mc server, user access
 
-        const timestamps = await PlayerChunkDB.getRegionTimestamps();
+        const timestamps = await database.getRegionTimestamps(client.dimension!);
         client.send({
             type: "RegionTimestamps",
             world: client.dimension!,
@@ -80,15 +79,16 @@ export class Main {
 
         // TODO ignore if same chunk hash exists in db
 
-        const playerChunk: PlayerChunk = {
-            world: pkt.world,
-            chunk_x: pkt.chunk_x,
-            chunk_z: pkt.chunk_z,
-            uuid: auth.uuid,
-            ts: pkt.ts,
-            data: pkt.data
-        };
-        PlayerChunkDB.store(playerChunk).catch(console.error);
+        await database.storeChunkData(
+            pkt.world,
+            pkt.chunk_x,
+            pkt.chunk_z,
+            auth.uuid,
+            pkt.ts,
+            pkt.data.version,
+            pkt.data.hash,
+            pkt.data.data
+        );
 
         // TODO small timeout, then skip if other client already has it
         for (const otherClient of Object.values(this.server.clients)) {
@@ -109,11 +109,13 @@ export class Main {
         for (const req of pkt.chunks) {
             const { world, chunk_x, chunk_z } = req;
 
-            let chunk = await PlayerChunkDB.getChunkWithData({
+            let chunk = await database.getChunkData(
                 world,
                 chunk_x,
-                chunk_z
-            });
+                chunk_z,
+                req.ts
+            );
+
             if (!chunk) {
                 console.error(
                     `${client.name} requested unavailable chunk`,
@@ -122,10 +124,14 @@ export class Main {
                 continue;
             }
 
-            if (chunk.ts > req.ts) continue; // someone sent a new chunk, which presumably got relayed to the client
-            if (chunk.ts < req.ts) continue; // the client already has a chunk newer than this
-
-            client.send({ type: "ChunkTile", ...chunk });
+            client.send({
+                type: "ChunkTile",
+                world,
+                chunk_x,
+                chunk_z,
+                ts: req.ts,
+                data: chunk
+            });
         }
     }
 
@@ -135,10 +141,18 @@ export class Main {
     ) {
         client.requireAuth();
 
-        const chunks = await PlayerChunkDB.getCatchupData(
+        const chunks = await database.getChunkTimestamps(
             pkt.world,
             pkt.regions
         );
-        if (chunks.length) client.send({ type: "Catchup", chunks });
+        if (chunks.length) client.send({
+            type: "Catchup",
+            chunks: chunks.map((chunk) => ({
+                world: chunk.world,
+                chunk_x: chunk.x,
+                chunk_z: chunk.z,
+                ts: chunk.timestamp
+            }))
+        });
     }
 }
