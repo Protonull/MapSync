@@ -1,7 +1,7 @@
 package gjum.minecraft.mapsync.forge;
 
 import gjum.minecraft.mapsync.common.MapSyncMod;
-import net.minecraft.client.KeyMapping;
+import gjum.minecraft.mapsync.common.gui.KeyBinds;
 import net.minecraftforge.client.ClientRegistry;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.TickEvent;
@@ -13,27 +13,24 @@ import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 @Mod("mapsync")
 public class ForgeMapSyncMod extends MapSyncMod {
 	public ForgeMapSyncMod() {
-		FMLJavaModLoadingContext.get().getModEventBus().addListener(this::clientSetup);
+		FMLJavaModLoadingContext.get().getModEventBus().addListener((final FMLClientSetupEvent event) -> {
+			init();
+			KeyBinds.MAPPINGS.forEach(ClientRegistry::registerKeyBinding);
+		});
 		MinecraftForge.EVENT_BUS.register(this);
 	}
 
-	public void clientSetup(FMLClientSetupEvent event) {
-		init();
-	}
-
 	@SubscribeEvent
-	public void onClientTick(TickEvent.ClientTickEvent event) {
+	public void onClientTick(
+			final TickEvent.ClientTickEvent event
+	) {
 		try {
 			if (event.phase == TickEvent.Phase.START) {
 				handleTick();
 			}
-		} catch (Throwable e) {
-			e.printStackTrace();
 		}
-	}
-
-	@Override
-	public void registerKeyBinding(KeyMapping mapping) {
-		ClientRegistry.registerKeyBinding(mapping);
+		catch (final Throwable thrown) {
+			logger.warn(thrown);
+		}
 	}
 }

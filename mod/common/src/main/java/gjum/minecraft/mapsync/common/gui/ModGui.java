@@ -1,4 +1,4 @@
-package gjum.minecraft.mapsync.common;
+package gjum.minecraft.mapsync.common.gui;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import gjum.minecraft.mapsync.common.config.ServerConfig;

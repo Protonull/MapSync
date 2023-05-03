@@ -44,14 +44,14 @@ public class DimensionChunkMeta {
 	}
 
 	public synchronized long getTimestamp(ChunkPos chunkPos) {
-		final var regionPos = RegionPos.forChunkPos(chunkPos);
+		final var regionPos = RegionPos.fromChunkPos(chunkPos);
 		final long[] regionTimestamps = regionsTimestamps.computeIfAbsent(regionPos, this::readRegionTimestampsFile);
 		final int chunkNr = RegionPos.chunkIndex(chunkPos);
 		return regionTimestamps[chunkNr];
 	}
 
 	public synchronized void setTimestamp(ChunkPos chunkPos, long timestamp) {
-		final var regionPos = RegionPos.forChunkPos(chunkPos);
+		final var regionPos = RegionPos.fromChunkPos(chunkPos);
 		final long[] regionTimestamps = regionsTimestamps.computeIfAbsent(regionPos, this::readRegionTimestampsFile);
 		final int chunkNr = RegionPos.chunkIndex(chunkPos);
 		regionTimestamps[chunkNr] = timestamp;

@@ -1,26 +1,24 @@
 package gjum.minecraft.mapsync.fabric;
 
 import gjum.minecraft.mapsync.common.MapSyncMod;
+import gjum.minecraft.mapsync.common.gui.KeyBinds;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
-import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
 
 public class FabricMapSyncMod extends MapSyncMod implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
 		init();
-		ClientTickEvents.START_CLIENT_TICK.register(client -> {
+		KeyBinds.MAPPINGS.forEach(KeyBindingHelper::registerKeyBinding);
+		ClientTickEvents.START_CLIENT_TICK.register((final Minecraft client) -> {
 			try {
 				handleTick();
-			} catch (Throwable e) {
-				e.printStackTrace();
+			}
+			catch (final Throwable thrown) {
+				logger.warn(thrown);
 			}
 		});
-	}
-
-	@Override
-	public void registerKeyBinding(KeyMapping mapping) {
-		KeyBindingHelper.registerKeyBinding(mapping);
 	}
 }

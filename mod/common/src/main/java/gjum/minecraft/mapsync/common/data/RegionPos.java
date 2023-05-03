@@ -6,7 +6,7 @@ public record RegionPos(int x, int z) {
 
   public static final int CHUNKS_IN_REGION = 32 * 32;
 
-  public static RegionPos forChunkPos(ChunkPos pos) {
+  public static RegionPos fromChunkPos(ChunkPos pos) {
     return new RegionPos(pos.x >> 5, pos.z >> 5);
   }
 

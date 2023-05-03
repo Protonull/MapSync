@@ -1,18 +1,18 @@
 package gjum.minecraft.mapsync.common.integration;
 
 import gjum.minecraft.mapsync.common.data.*;
+import java.util.Objects;
 import journeymap.client.JourneymapClient;
 import journeymap.client.io.FileHandler;
 import journeymap.client.model.*;
 import journeymap.common.nbt.RegionData;
 import journeymap.common.nbt.RegionDataStorageHandler;
+import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
-
-import static gjum.minecraft.mapsync.common.Utils.mc;
 
 public class JourneyMapHelperReal {
 	static boolean isMapping() {
@@ -28,7 +28,7 @@ public class JourneyMapHelperReal {
 		var chunkMd = new TileChunkMD(chunkTile);
 
 		var rCoord = RegionCoord.fromChunkPos(
-				FileHandler.getJMWorldDir(mc),
+				FileHandler.getJMWorldDir(Minecraft.getInstance()),
 				MapType.day(chunkTile.dimension()), // type doesn't matter, only dimension is used
 				chunkMd.getCoord().x,
 				chunkMd.getCoord().z);
@@ -58,7 +58,11 @@ public class JourneyMapHelperReal {
 		private final ChunkTile chunkTile;
 
 		public TileChunkMD(ChunkTile chunkTile) {
-			super(new LevelChunk(mc.level, chunkTile.chunkPos()),
+			super(
+					new LevelChunk(
+							Objects.requireNonNull(Minecraft.getInstance().level),
+							chunkTile.chunkPos()
+					),
 					chunkTile.chunkPos(),
 					null, // all accessing methods are overridden
 					MapType.day(chunkTile.dimension()) // just has to not be `underground`

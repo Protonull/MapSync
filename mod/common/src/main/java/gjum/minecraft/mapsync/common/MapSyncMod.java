@@ -1,12 +1,11 @@
 package gjum.minecraft.mapsync.common;
 
-import com.mojang.blaze3d.platform.InputConstants;
 import gjum.minecraft.mapsync.common.config.ModConfig;
 import gjum.minecraft.mapsync.common.config.ServerConfig;
 import gjum.minecraft.mapsync.common.data.*;
+import gjum.minecraft.mapsync.common.gui.KeyBinds;
 import gjum.minecraft.mapsync.common.net.SyncClient;
 import gjum.minecraft.mapsync.common.net.packet.*;
-import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.network.protocol.game.ClientboundLoginPacket;
@@ -15,7 +14,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.lwjgl.glfw.GLFW;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -36,13 +34,6 @@ public abstract class MapSyncMod {
 		return INSTANCE;
 	}
 
-	private static final KeyMapping openGuiKey = new KeyMapping(
-			"key.map-sync.openGui",
-			InputConstants.Type.KEYSYM,
-			GLFW.GLFW_KEY_COMMA,
-			"category.map-sync"
-	);
-
 	private @NotNull List<SyncClient> syncClients = new ArrayList<>();
 
 	/**
@@ -62,21 +53,15 @@ public abstract class MapSyncMod {
 		INSTANCE = this;
 	}
 
-	public abstract void registerKeyBinding(KeyMapping mapping);
-
 	public void init() {
 		logger.info("MapSync version: " + Constants.VERSION); // Sneaky sneak initialiser
-
-		registerKeyBinding(openGuiKey);
 
 		modConfig = ModConfig.load();
 		modConfig.saveNow(); // creates the default file if it doesn't exist yet
 	}
 
 	public void handleTick() {
-		while (openGuiKey.consumeClick()) {
-			mc.setScreen(new ModGui(mc.screen));
-		}
+		KeyBinds.handleTick();
 
 		var dimensionState = getDimensionState();
 		if (dimensionState != null) dimensionState.onTick();

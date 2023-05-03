@@ -55,9 +55,7 @@ public class RenderQueue {
 					return; // world closed; all queued chunks can't be rendered
 				}
 
-				if (!JourneyMapHelper.isJourneyMapNotAvailable && !JourneyMapHelper.isMapping()
-						|| !VoxelMapHelper.isVoxelMapNotAvailable && !VoxelMapHelper.isMapping()
-				) {
+				if (!JourneyMapHelper.isMapping() && !VoxelMapHelper.isMapping()) {
 					debugLog("render is waiting til map mod is ready");
 					Thread.sleep(1000);
 					continue;
