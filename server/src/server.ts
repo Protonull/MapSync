@@ -1,14 +1,12 @@
 import node_crypto from "node:crypto";
 import node_net from "node:net";
-import fetch from "node-fetch";
+import node_util from "node:util";
+import * as errors from "./deps/errors";
 import { Main } from "./main";
-import {
-    decodePacket,
-    encodePacket,
-    type ClientPacket,
-    type ServerPacket
-} from "./protocol";
-import { BufReader, BufWriter } from "./deps/buffers";
+import { Mutex } from "async-mutex";
+import fetch from "node-fetch";
+import * as protocol from "./protocol";
+import { BufReader, BufWriter, duplicateSlice } from "./deps/buffers";
 import { EncryptionResponsePacket } from "./protocol/EncryptionResponsePacket";
 import { HandshakePacket } from "./protocol/HandshakePacket";
 
@@ -16,23 +14,101 @@ const { PORT = "12312", HOST = "127.0.0.1" } = process.env;
 
 type ProtocolHandler = Main; // TODO cleanup
 
-export class TcpServer {
-    server: node_net.Server;
-    clients: Record<number, TcpClient> = {};
+const FRAME_SIZE_BYTES = 4;
+const MAX_FRAME_SIZE = 1 << 24;
 
-    keyPair = node_crypto.generateKeyPairSync("rsa", { modulusLength: 1024 });
-    // precomputed for networking
-    publicKeyBuffer = this.keyPair.publicKey.export({
+export class TcpServer {
+    public readonly server: node_net.Server;
+    public readonly clients = new Map<bigint, TcpClient>();
+
+    private readonly KEY_PAIR = node_crypto.generateKeyPairSync("rsa", {
+        modulusLength: 1024
+    });
+    public readonly PUBLIC_KEY_BUFFER = this.KEY_PAIR.publicKey.export({
         type: "spki",
         format: "der"
     });
 
-    constructor(readonly handler: ProtocolHandler) {
+    public constructor(
+        private readonly handler: ProtocolHandler
+    ) {
         this.server = node_net.createServer({}, (socket) => {
             const client = new TcpClient(socket, this, handler);
-            this.clients[client.id] = client;
-            socket.on("end", () => delete this.clients[client.id]);
-            socket.on("close", () => delete this.clients[client.id]);
+            this.clients.set(client.id, client);
+            client.log("Connected from", socket.remoteAddress);
+            handler.handleClientConnected(client);
+
+            socket.on("end", () => {
+                // This event is called when the other end signals the end of
+                // transmission, meaning this client is still writeable but not
+                // readable. In this situation we just want to close the socket.
+                // https://nodejs.org/dist/latest-v18.x/docs/api/net.html#event-end
+                client.kick("Ended");
+            });
+            socket.on("timeout", () => {
+                // As per the docs, the socket needs to be manually closed
+                // https://nodejs.org/dist/latest-v18.x/docs/api/net.html#event-timeout
+                client.kick("Timed out");
+            });
+            socket.on("error", (err) => {
+                client.kick("Socket error: " + node_util.inspect(err));
+            });
+            socket.on("close", (hadError) => {
+                client._auth = undefined;
+                this.clients.delete(client.id);
+                receivingMutex.cancel();
+                client.log("Closed.", { hadError });
+            });
+
+            const receivingMutex = new Mutex();
+            let receivedBuffer: Buffer = Buffer.alloc(0);
+            socket.on("data", (data: Buffer) => {
+                receivingMutex.runExclusive(async () => {
+                    try {
+                        data = await client._auth?.decipher.update(data) ?? data;
+                    }
+                    catch (err) {
+                        client.kick("Could not decipher received data: " + node_util.inspect(err));
+                        return;
+                    }
+
+                    const combinedReceivedSize = receivedBuffer.length + data.length;
+                    if (combinedReceivedSize > MAX_FRAME_SIZE) {
+                        client.kick("They're sending too much data! Frame reached size of [" + combinedReceivedSize + "] when the max is [" + MAX_FRAME_SIZE + "]");
+                        return;
+                    }
+
+                    receivedBuffer = Buffer.concat([ receivedBuffer, data ]);
+                    let lastOffset = 0, remainingLength: number;
+
+                    while ((remainingLength = receivedBuffer.length - lastOffset) > FRAME_SIZE_BYTES) {
+                        const packetLength = receivedBuffer.readUInt32BE(lastOffset);
+                        if (packetLength > MAX_FRAME_SIZE) {
+                            client.kick("The packets they're sending are too large! Packet length specified as [" + packetLength + "] when the max is [" + MAX_FRAME_SIZE + "]");
+                            return;
+                        }
+                        if ((packetLength + FRAME_SIZE_BYTES) > remainingLength) {
+                            // Need to wait until more data has arrived
+                            break;
+                        }
+                        lastOffset += FRAME_SIZE_BYTES; // Wait till here to increase the offset to allow for graceful break-and-remainder-copy
+                        try {
+                            const packetBuffer = duplicateSlice(receivedBuffer, lastOffset, packetLength);
+                            const packerReader = new BufReader(packetBuffer);
+                            const packet = protocol.decodePacket(packerReader);
+                            await client.handlePacketReceived(packet);
+                        }
+                        catch (e) {
+                            client.warn(e);
+                            client.kick("Error in packet handler");
+                            return;
+                        }
+                        lastOffset += packetLength;
+                    }
+
+                    receivedBuffer = duplicateSlice(receivedBuffer, lastOffset, remainingLength);
+                });
+            });
         });
 
         this.server.on("error", (err: Error) => {
@@ -45,290 +121,201 @@ export class TcpServer {
         });
     }
 
-    decrypt(buf: Buffer) {
+    public decrypt(buffer: Buffer): Buffer {
         return node_crypto.privateDecrypt(
             {
-                key: this.keyPair.privateKey,
+                key: this.KEY_PAIR.privateKey,
                 padding: node_crypto.constants.RSA_PKCS1_PADDING
             },
-            buf
+            buffer
         );
     }
 }
 
-let nextClientId = 1;
+let nextClientId = 1n;
 
 /** Prefixes packets with their length (UInt32BE);
  * handles Mojang authentication */
 export class TcpClient {
     readonly id = nextClientId++;
     /** contains mojang name once logged in */
-    name = "Client" + this.id;
+    public name = "Client" + this.id;
 
-    modVersion: string | undefined;
-    gameAddress: string | undefined;
-    uuid: string | undefined;
-    mcName: string | undefined;
-    world: string | undefined;
-
-    /** prevent Out of Memory when client sends a large packet */
-    maxFrameSize = 2 ** 24;
+    public _auth?: Readonly<{
+        uuid: string
+        username: string
+        encipher: node_crypto.Cipher
+        decipher: node_crypto.Decipher
+    }>;
+    public dimension?: string;
 
     /** sent by client during handshake */
     private claimedMojangName?: string;
     private verifyToken?: Buffer;
-    /** we need to wait for the mojang auth response
-     * before we can en/decrypt packets following the handshake */
-    private cryptoPromise?: Promise<{
-        cipher: node_crypto.Cipher;
-        decipher: node_crypto.Decipher;
-    }>;
 
-    constructor(
-        private socket: node_net.Socket,
-        private server: TcpServer,
-        private handler: ProtocolHandler
+    public constructor(
+        private readonly socket: node_net.Socket,
+        private readonly server: TcpServer,
+        private readonly handler: ProtocolHandler
+    ) { }
+
+    public getAuth() {
+        return this._auth ?? false;
+    }
+
+    public requireAuth() {
+        const auth = this.getAuth();
+        if (auth === false) {
+            throw new Error(`Client[${this.name}] not authenticated`);
+        }
+        return auth;
+    }
+
+    public kick(
+        internalReason: string
     ) {
-        this.log("Connected from", socket.remoteAddress);
-        handler.handleClientConnected(this);
-
-        /** Accumulates received data, containing none, one, or multiple frames; the last frame may be partial only. */
-        let accBuf: Buffer = Buffer.alloc(0);
-
-        socket.on("data", async (data: Buffer) => {
-            try {
-                if (this.cryptoPromise) {
-                    const { decipher } = await this.cryptoPromise;
-                    data = decipher.update(data);
-                }
-
-                // creating a new buffer every time is fine in our case, because we expect most frames to be large
-                accBuf = Buffer.concat([accBuf, data]);
-
-                // we may receive multiple frames in one call
-                while (true) {
-                    if (accBuf.length <= 4) return; // wait for more data
-                    const frameSize = accBuf.readUInt32BE();
-
-                    // prevent Out of Memory
-                    if (frameSize > this.maxFrameSize) {
-                        return this.kick(
-                            "Frame too large: " +
-                                frameSize +
-                                " have " +
-                                accBuf.length
-                        );
-                    }
-
-                    if (accBuf.length < 4 + frameSize) return; // wait for more data
-
-                    const frameReader = new BufReader(accBuf);
-                    frameReader.readUInt32(); // skip frame size
-                    let pktBuf = frameReader.readBufLen(frameSize);
-                    accBuf = frameReader.readRemainder();
-
-                    const reader = new BufReader(pktBuf);
-
-                    try {
-                        const packet = decodePacket(reader);
-                        await this.handlePacketReceived(packet);
-                    }
-                    catch (err) {
-                        this.warn(err);
-                        return this.kick("Error in packet handler");
-                    }
-                }
-            }
-            catch (err) {
-                this.warn(err);
-                return this.kick("Error in data handler");
-            }
-        });
-
-        socket.on("close", (hadError: boolean) => {
-            this.log("Closed.", { hadError });
-        });
-
-        socket.on("end", () => {
-            this.log("Ended");
-        });
-
-        socket.on("timeout", () => {
-            this.warn("Timeout");
-        });
-
-        socket.on("error", (err: Error) => {
-            this.warn("Error:", err);
-            this.kick("Socket error");
-        });
-    }
-
-    private async handlePacketReceived(pkt: ClientPacket) {
-        if (!this.uuid) {
-            // not authenticated yet
-            switch (pkt.type) {
-                case "Handshake":
-                    return await this.handleHandshakePacket(pkt);
-                case "EncryptionResponse":
-                    return await this.handleEncryptionResponsePacket(pkt);
-            }
-            throw new Error(
-                `Packet ${pkt.type} from unauth'd client ${this.id}`
-            );
-        }
-        else {
-            return await this.handler.handleClientPacketReceived(this, pkt);
-        }
-    }
-
-    kick(internalReason: string) {
-        this.log(`Kicking:`, internalReason);
+        this.log("Kicking: " + internalReason);
         this.socket.destroy();
     }
 
-    async send(pkt: ServerPacket) {
-        if (!this.cryptoPromise) {
-            this.debug("Not encrypted, dropping packet", pkt.type);
-            return;
-        }
-        if (!this.uuid) {
-            this.debug("Not authenticated, dropping packet", pkt.type);
-            return;
-        }
-        this.debug(this.mcName + " -> " + pkt.type);
-        await this.sendInternal(pkt, true);
-    }
-
-    private async sendInternal(pkt: ServerPacket, doCrypto = false) {
-        if (!this.socket.writable)
-            return this.debug("Socket closed, dropping", pkt.type);
-        if (doCrypto && !this.cryptoPromise)
-            throw new Error(`Can't encrypt: handshake not finished`);
-
+    public async send(
+        packet: protocol.ServerPacket,
+        doCrypto = true
+    ) {
+        if (doCrypto) this.requireAuth();
+        this.debug(`MapSync[${packet.type}] → ${this.name}`);
         const writer = new BufWriter(); // TODO size hint
         writer.writeUInt32(0); // set later, but reserve space in buffer
-        encodePacket(pkt, writer);
-        let buf = writer.getBuffer();
-        buf.writeUInt32BE(buf.length - 4, 0); // write into space reserved above
+        protocol.encodePacket(packet, writer);
+        let buffer = writer.getBuffer();
+        buffer.writeUInt32BE(buffer.length - 4, 0); // write into space reserved above
+        if (doCrypto) buffer = await this._auth!.encipher.update(buffer);
+        this.socket.write(buffer);
+    }
 
-        if (doCrypto) {
-            const { cipher } = await this.cryptoPromise!;
-            buf = cipher!.update(buf);
+    public async handlePacketReceived(
+        packet: protocol.ClientPacket
+    ) {
+        this.debug(`MapSync ← ${this.name}[${packet.type}]`);
+        if (this.getAuth() === false) { // not authenticated yet
+            // not authenticated yet
+            switch (packet.type) {
+                case "Handshake":
+                    return await this.handleHandshakePacket(packet);
+                case "EncryptionResponse":
+                    return await this.handleEncryptionResponsePacket(packet);
+            }
+            throw new Error(
+                `Packet ${packet.type} from unauth'd client ${this.id}`
+            );
         }
-
-        this.socket.write(buf);
+        else {
+            return await this.handler.handleClientPacketReceived(this, packet);
+        }
     }
 
     private async handleHandshakePacket(packet: HandshakePacket) {
-        if (this.cryptoPromise) throw new Error(`Already authenticated`);
+        if (this.getAuth() !== false) throw new Error(`Already authenticated`);
         if (this.verifyToken) throw new Error(`Encryption already started`);
-
-        this.modVersion = packet.modVersion;
-        this.gameAddress = packet.gameAddress;
+        // TODO: Check "packet.modVersion" here
+        // TODO: Check "packet.gameAddress" here
         this.claimedMojangName = packet.mojangName;
-        this.world = packet.world;
+        this.dimension = packet.world;
         this.verifyToken = node_crypto.randomBytes(4);
-
-        await this.sendInternal({
+        await this.send({
             type: "EncryptionRequest",
-            publicKey: this.server.publicKeyBuffer,
+            publicKey: this.server.PUBLIC_KEY_BUFFER,
             verifyToken: this.verifyToken
-        });
+        }, false);
     }
 
     private async handleEncryptionResponsePacket(
         pkt: EncryptionResponsePacket
     ) {
-        if (this.cryptoPromise) throw new Error(`Already authenticated`);
-        if (!this.claimedMojangName)
+        if (this.getAuth() !== false) {
+            throw new Error(`Already authenticated`);
+        }
+        if (!this.claimedMojangName) {
             throw new Error(`Encryption has not started: no mojangName`);
-        if (!this.verifyToken)
+        }
+        if (!this.verifyToken) {
             throw new Error(`Encryption has not started: no verifyToken`);
+        }
 
         const verifyToken = this.server.decrypt(pkt.verifyToken);
         if (!this.verifyToken.equals(verifyToken)) {
-            throw new Error(
-                `verifyToken mismatch: got ${verifyToken} expected ${this.verifyToken}`
+            this.kick(
+                `Incorrect verifyToken! Expected [${this.verifyToken}], got [${verifyToken}]`
             );
+            return;
         }
 
         const secret = this.server.decrypt(pkt.sharedSecret);
-
         const shaHex = node_crypto
             .createHash("sha1")
             .update(secret)
-            .update(this.server.publicKeyBuffer)
+            .update(this.server.PUBLIC_KEY_BUFFER)
             .digest()
             .toString("hex");
 
-        this.cryptoPromise = fetchHasJoined({
-            username: this.claimedMojangName,
-            shaHex
-        }).then(async (mojangAuth) => {
-            if (!mojangAuth?.uuid) {
-                this.kick(`Mojang auth failed`);
-                throw new Error(`Mojang auth failed`);
-            }
+        const auth = await fetchHasJoined(this.claimedMojangName, shaHex);
+        if (auth instanceof Error) {
+            this.kick("Mojang auth failed");
+            this.warn(auth);
+            return;
+        }
 
-            this.log("Authenticated as", mojangAuth);
+        this.log("Authenticated as " + auth.name);
+        this.name += ":" + auth.name;
+        this._auth = {
+            uuid: auth.uuid,
+            username: auth.name,
+            encipher: node_crypto.createCipheriv(
+                "aes-128-cfb8",
+                secret,
+                secret
+            ),
+            decipher: node_crypto.createDecipheriv(
+                "aes-128-cfb8",
+                secret,
+                secret
+            )
+        };
 
-            this.uuid = mojangAuth.uuid;
-            this.mcName = mojangAuth.name;
-            this.name += ":" + mojangAuth.name;
-
-            return {
-                cipher: node_crypto.createCipheriv(
-                    "aes-128-cfb8",
-                    secret,
-                    secret
-                ),
-                decipher: node_crypto.createDecipheriv(
-                    "aes-128-cfb8",
-                    secret,
-                    secret
-                )
-            };
-        });
-
-        await this.cryptoPromise.then(async () => {
-            await this.handler.handleClientAuthenticated(this);
-        });
+        await this.handler.handleClientAuthenticated(this);
     }
 
-    debug(...args: any[]) {
+    public debug(...args: any[]) {
         if (process.env.NODE_ENV === "production") return;
         console.debug(`[${this.name}]`, ...args);
     }
 
-    log(...args: any[]) {
+    public log(...args: any[]) {
         console.log(`[${this.name}]`, ...args);
     }
 
-    warn(...args: any[]) {
+    public warn(...args: any[]) {
         console.error(`[${this.name}]`, ...args);
     }
 }
 
-async function fetchHasJoined(args: {
-    username: string;
-    shaHex: string;
-    clientIp?: string;
-}) {
-    const { username, shaHex, clientIp } = args;
-    let url = `https://sessionserver.mojang.com/session/minecraft/hasJoined?username=${username}&serverId=${shaHex}`;
-    if (clientIp) url += `&ip=${clientIp}`;
-    const res = await fetch(url);
-    try {
-        if (res.status === 204) return null;
-        let { id, name } = (await res.json()) as { id: string; name: string };
-        const uuid = id.replace(
-            /^(........)-?(....)-?(....)-?(....)-?(............)$/,
-            "$1-$2-$3-$4-$5"
-        );
-        return { uuid, name };
-    }
-    catch (err) {
-        console.error(res);
-        throw err;
-    }
+async function fetchHasJoined(
+    username: string,
+    shaHex: string
+) {
+    return await fetch(`https://sessionserver.mojang.com/session/minecraft/hasJoined?username=${username}&serverId=${shaHex}`)
+        .then((res) => {
+            if (res.status === 204) {
+                throw new Error("Auth returned 204 (empty)");
+            }
+            return res.json();
+        })
+        .then((res: { name: string; id: string; }) => ({
+            name: res.name,
+            uuid: res.id.replace(
+                /^(........)-?(....)-?(....)-?(....)-?(............)$/,
+                "$1-$2-$3-$4-$5"
+            )
+        }))
+        .catch((err) => errors.ensureError(err));
 }
