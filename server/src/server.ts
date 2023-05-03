@@ -220,7 +220,7 @@ export class TcpClient {
         // TODO: Check "packet.modVersion" here
         // TODO: Check "packet.gameAddress" here
         this.claimedMojangName = packet.mojangName;
-        this.dimension = packet.world;
+        this.dimension = packet.dimension;
         this.verifyToken = node_crypto.randomBytes(4);
         await this.send({
             type: "EncryptionRequest",

@@ -50,7 +50,7 @@ export class Main {
         const timestamps = await database.getRegionTimestamps(client.dimension!);
         client.send({
             type: "RegionTimestamps",
-            world: client.dimension!,
+            dimension: client.dimension!,
             regions: timestamps
         });
     }
@@ -80,7 +80,7 @@ export class Main {
         // TODO ignore if same chunk hash exists in db
 
         await database.storeChunkData(
-            pkt.world,
+            pkt.dimension,
             pkt.chunk_x,
             pkt.chunk_z,
             auth.uuid,
@@ -107,10 +107,10 @@ export class Main {
         client.requireAuth();
 
         for (const req of pkt.chunks) {
-            const { world, chunk_x, chunk_z } = req;
+            const { dimension, chunk_x, chunk_z } = req;
 
             let chunk = await database.getChunkData(
-                world,
+                dimension,
                 chunk_x,
                 chunk_z,
                 req.ts
@@ -126,7 +126,7 @@ export class Main {
 
             client.send({
                 type: "ChunkTile",
-                world,
+                dimension,
                 chunk_x,
                 chunk_z,
                 ts: req.ts,
@@ -142,13 +142,13 @@ export class Main {
         client.requireAuth();
 
         const chunks = await database.getChunkTimestamps(
-            pkt.world,
+            pkt.dimension,
             pkt.regions
         );
         if (chunks.length) client.send({
             type: "Catchup",
             chunks: chunks.map((chunk) => ({
-                world: chunk.world,
+                dimension: chunk.dimension,
                 chunk_x: chunk.x,
                 chunk_z: chunk.z,
                 ts: chunk.timestamp

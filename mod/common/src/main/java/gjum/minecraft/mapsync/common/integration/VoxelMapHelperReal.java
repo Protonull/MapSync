@@ -64,8 +64,8 @@ public class VoxelMapHelperReal {
 		try {
 			var vm = AbstractVoxelMap.getInstance();
 			PersistentMap map = (PersistentMap) vm.getPersistentMap();
-			var world = (ClientLevel) worldField.get(map);
-			return world != null;
+			var dimension = (ClientLevel) worldField.get(map);
+			return dimension != null;
 		} catch (IllegalAccessException ignored) {
 			return false;
 		}
@@ -162,10 +162,10 @@ public class VoxelMapHelperReal {
 		@SuppressWarnings("unchecked")
 		var cachedRegionsPool = (List<CachedRegion>) cachedRegionsPoolField.get(map);
 
-		var world = (ClientLevel) worldField.get(map);
+		var dimension = (ClientLevel) worldField.get(map);
 
-		String worldName = vm.getWaypointManager().getCurrentWorldName();
-		String subWorldName = vm.getWaypointManager().getCurrentSubworldDescriptor(false);
+		String dimensionName = vm.getWaypointManager().getCurrentWorldName();
+		String subDimensionName = vm.getWaypointManager().getCurrentSubworldDescriptor(false);
 
 		String key = rx + "," + rz;
 
@@ -178,7 +178,7 @@ public class VoxelMapHelperReal {
 			region = cachedRegions.get(key);
 			// could be race condition if the region is not fully loaded at this point
 			if (region == null || region instanceof EmptyCachedRegion) {
-				region = new CachedRegion(map, key, world, worldName, subWorldName, rx, rz);
+				region = new CachedRegion(map, key, dimension, dimensionName, subDimensionName, rx, rz);
 
 				cachedRegions.put(key, region);
 

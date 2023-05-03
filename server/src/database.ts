@@ -91,7 +91,7 @@ export async function getChunkTimestamps(dimension: string, regions: Pos2D[]) {
         .with("regions", (db) => db
             .selectFrom("player_chunk")
             .select([
-                "world",
+                "world as dimension",
                 (eb) => kysely.sql<string>`(cast(floor(${eb.ref("chunk_x")} / 32.0) as int) || '_' || cast(floor(${eb.ref("chunk_z")} / 32.0) as int))`.as("region"),
                 "chunk_x as x",
                 "chunk_z as z",
@@ -101,12 +101,12 @@ export async function getChunkTimestamps(dimension: string, regions: Pos2D[]) {
         )
         .selectFrom("regions")
         .select([
-            "world",
+            "dimension",
             "x",
             "z",
             "timestamp"
         ])
-        .where("world", "=", dimension)
+        .where("dimension", "=", dimension)
         .where("region", "in", regions.map((region) => region.x + "_" + region.z))
         .orderBy("timestamp", "desc")
         .execute();

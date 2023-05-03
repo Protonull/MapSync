@@ -8,12 +8,12 @@ export interface CatchupRequestPacket {
 
 export namespace CatchupRequestPacket {
     export function decode(reader: BufReader): CatchupRequestPacket {
-        const world = reader.readString();
+        const dimension = reader.readString();
         const numChunks = reader.readUInt32();
         const chunks: CatchupChunk[] = [];
         for (let i = 0; i < numChunks; i++) {
             chunks.push({
-                world,
+                dimension,
                 chunk_x: reader.readInt32(),
                 chunk_z: reader.readInt32(),
                 ts: reader.readUInt64()

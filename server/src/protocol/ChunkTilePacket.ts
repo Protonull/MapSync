@@ -2,7 +2,7 @@ import { BufReader, BufWriter } from "../deps/buffers";
 
 export interface ChunkTilePacket {
     type: "ChunkTile";
-    world: string;
+    dimension: string;
     chunk_x: number;
     chunk_z: number;
     ts: number;
@@ -13,7 +13,7 @@ export namespace ChunkTilePacket {
     export function decode(reader: BufReader): ChunkTilePacket {
         return {
             type: "ChunkTile",
-            world: reader.readString(),
+            dimension: reader.readString(),
             chunk_x: reader.readInt32(),
             chunk_z: reader.readInt32(),
             ts: reader.readUInt64(),
@@ -26,7 +26,7 @@ export namespace ChunkTilePacket {
     }
 
     export function encode(pkt: ChunkTilePacket, writer: BufWriter) {
-        writer.writeString(pkt.world);
+        writer.writeString(pkt.dimension);
         writer.writeInt32(pkt.chunk_x);
         writer.writeInt32(pkt.chunk_z);
         writer.writeUInt64(pkt.ts);

@@ -13,13 +13,13 @@ public class CHandshake extends Packet {
 	public final @NotNull String modVersion;
 	public final @NotNull String username;
 	public final @NotNull String gameAddress;
-	public final @NotNull String world;
+	public final @NotNull String dimension;
 
-	public CHandshake(@NotNull String modVersion, @NotNull String username, @NotNull String gameAddress, @NotNull String world) {
+	public CHandshake(@NotNull String modVersion, @NotNull String username, @NotNull String gameAddress, @NotNull String dimension) {
 		this.modVersion = modVersion;
 		this.username = username;
 		this.gameAddress = gameAddress;
-		this.world = world;
+		this.dimension = dimension;
 	}
 
 	@Override
@@ -27,7 +27,7 @@ public class CHandshake extends Packet {
 		writeStringToBuf(out, modVersion);
 		writeStringToBuf(out, username);
 		writeStringToBuf(out, gameAddress);
-		writeStringToBuf(out, world);
+		writeStringToBuf(out, dimension);
 	}
 
 	@Override

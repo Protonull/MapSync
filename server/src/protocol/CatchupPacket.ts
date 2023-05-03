@@ -9,7 +9,7 @@ export interface CatchupPacket {
 export namespace CatchupPacket {
     export function encode(pkt: CatchupPacket, writer: BufWriter) {
         if (!pkt.chunks[0]) throw new Error(`Catchup chunks must not be empty`);
-        writer.writeString(pkt.chunks[0].world);
+        writer.writeString(pkt.chunks[0].dimension);
         writer.writeUInt32(pkt.chunks.length);
         for (const row of pkt.chunks) {
             writer.writeInt32(row.chunk_x);
