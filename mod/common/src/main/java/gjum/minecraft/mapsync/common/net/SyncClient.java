@@ -47,7 +47,7 @@ public class SyncClient {
 			return; // server already has this chunk
 		}
 
-		send(new ChunkTilePacket(chunkTile));
+		send(new BID_ChunkDataPacket(chunkTile));
 
 		// assume packet will reach server eventually
 		setServerKnownChunkHash(chunkTile.chunkPos(), chunkTile.dataHash());
@@ -85,7 +85,7 @@ public class SyncClient {
 	/**
 	 * limited (on insert) to 199 entries
 	 */
-	private ArrayList<Packet> queue = new ArrayList<>();
+	private ArrayList<IPacket> queue = new ArrayList<>();
 	private @Nullable Channel channel;
 	private static @Nullable NioEventLoopGroup workerGroup;
 
@@ -130,7 +130,7 @@ public class SyncClient {
 			channelFuture.addListener(future -> {
 				if (future.isSuccess()) {
 					logger.info("[map-sync] Connected to " + address);
-					channelFuture.channel().writeAndFlush(new CHandshake(
+					channelFuture.channel().writeAndFlush(new C2S_HandshakePacket(
 							Constants.VERSION,
 							Minecraft.getInstance().getUser().getName(),
 							gameAddress,
@@ -183,7 +183,7 @@ public class SyncClient {
 		isEncrypted = true;
 		getMod().handleSyncServerEncryptionSuccess();
 
-		for (Packet packet : queue) {
+		for (IPacket packet : queue) {
 			channel.write(packet);
 		}
 		queue.clear();
@@ -201,14 +201,14 @@ public class SyncClient {
 	/**
 	 * Send if encrypted, or queue and send once encryption is set up.
 	 */
-	public void send(Packet packet) {
+	public void send(IPacket packet) {
 		send(packet, true);
 	}
 
 	/**
 	 * Send if encrypted, or queue and send once encryption is set up.
 	 */
-	public synchronized void send(Packet packet, boolean flush) {
+	public synchronized void send(IPacket packet, boolean flush) {
 		try {
 			if (isEncrypted() && channel != null && channel.isActive()) {
 				if (flush) channel.writeAndFlush(packet);
@@ -242,7 +242,7 @@ public class SyncClient {
 		}
 	}
 
-	void setUpEncryption(ChannelHandlerContext ctx, SEncryptionRequest packet) {
+	void setUpEncryption(ChannelHandlerContext ctx, S2C_EncryptionRequestPacket packet) {
 		try {
 			byte[] sharedSecret = new byte[16];
 			ThreadLocalRandom.current().nextBytes(sharedSecret);
@@ -250,7 +250,7 @@ public class SyncClient {
 			if (!Platform.isDevelopmentEnvironment()) {
 				final String shaHex = HexFormat.of().formatHex(SHA1.hash((digest) -> {
 					digest.update(sharedSecret);
-					digest.update(packet.publicKey.getEncoded());
+					digest.update(packet.publicKey().getEncoded());
 				}));
 				final User session = Minecraft.getInstance().getUser();
 				Minecraft.getInstance().getMinecraftSessionService().joinServer(
@@ -258,9 +258,9 @@ public class SyncClient {
 			}
 
 			try {
-				ctx.channel().writeAndFlush(new CEncryptionResponse(
-						encrypt(packet.publicKey, sharedSecret),
-						encrypt(packet.publicKey, packet.verifyToken)));
+				ctx.channel().writeAndFlush(new C2S_EncryptionResponsePacket(
+						encrypt(packet.publicKey(), sharedSecret),
+						encrypt(packet.publicKey(), packet.verifyToken())));
 			} catch (NoSuchAlgorithmException | InvalidKeyException | NoSuchPaddingException | BadPaddingException |
 			         IllegalBlockSizeException e) {
 				shutDown();

@@ -198,14 +198,14 @@ public abstract class MapSyncMod {
 		// TODO tell server our current dimension
 	}
 
-	public void handleRegionTimestamps(SRegionTimestamps packet, SyncClient client) {
+	public void handleRegionTimestamps(S2C_RegionTimestampsPacket packet, SyncClient client) {
 		DimensionState dimension = getDimensionState();
 		if (dimension == null) return;
-		if (!dimension.dimension.location().toString().equals(packet.getDimension())) {
+		if (!dimension.dimension.location().toString().equals(packet.dimension())) {
 			return;
 		}
 		var outdatedRegions = new ArrayList<RegionPos>();
-		for (var regionTs : packet.getTimestamps()) {
+		for (var regionTs : packet.timestamps()) {
 			var regionPos = new RegionPos(regionTs.x(), regionTs.z());
 			long oldestChunkTs = dimension.getOldestChunkTsInRegion(regionPos);
 			boolean requiresUpdate = regionTs.timestamp() > oldestChunkTs;
@@ -220,7 +220,7 @@ public abstract class MapSyncMod {
 			}
 		}
 
-		client.send(new CRegionCatchup(packet.getDimension(), outdatedRegions));
+		client.send(new C2S_RegionCatchupRequestPacket(packet.dimension(), outdatedRegions));
 	}
 
 	public void handleSharedChunk(ChunkTile chunkTile) {
@@ -234,11 +234,11 @@ public abstract class MapSyncMod {
 		dimensionState.processSharedChunk(chunkTile);
 	}
 
-	public void handleCatchupData(SCatchup packet) {
+	public void handleCatchupData(S2C_RegionCatchupResponsePacket packet) {
 		var dimensionState = getDimensionState();
 		if (dimensionState == null) return;
-		debugLog("received catchup: " + packet.chunks.size() + " " + packet.chunks.get(0).syncClient.address);
-		dimensionState.addCatchupChunks(packet.chunks);
+		debugLog("received catchup: " + packet.chunks().size() + " " + packet.chunks().get(0).syncClient.address);
+		dimensionState.addCatchupChunks(packet.chunks());
 	}
 
 	public void requestCatchupData(List<CatchupChunk> chunks) {
@@ -255,7 +255,7 @@ public abstract class MapSyncMod {
 		}
 		for (List<CatchupChunk> chunksForServer : byServer.values()) {
 			SyncClient client = chunksForServer.get(0).syncClient;
-			client.send(new CCatchupRequest(chunksForServer));
+			client.send(new C2S_ChunkCatchupRequestPacket(chunksForServer));
 		}
 	}
 

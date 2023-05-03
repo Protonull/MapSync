@@ -5,18 +5,18 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToByteEncoder;
 
-public class ClientPacketEncoder extends MessageToByteEncoder<Packet> {
-	public static int getClientPacketId(Packet packet) {
-		if (packet instanceof ChunkTilePacket) return ChunkTilePacket.PACKET_ID;
-		if (packet instanceof CHandshake) return CHandshake.PACKET_ID;
-		if (packet instanceof CEncryptionResponse) return CEncryptionResponse.PACKET_ID;
-		if (packet instanceof CCatchupRequest) return CCatchupRequest.PACKET_ID;
-		if (packet instanceof CRegionCatchup) return CRegionCatchup.PACKET_ID;
+public class ClientPacketEncoder extends MessageToByteEncoder<IPacket> {
+	public static int getClientPacketId(IPacket packet) {
+		if (packet instanceof BID_ChunkDataPacket) return BID_ChunkDataPacket.PACKET_ID;
+		if (packet instanceof C2S_HandshakePacket) return C2S_HandshakePacket.PACKET_ID;
+		if (packet instanceof C2S_EncryptionResponsePacket) return C2S_EncryptionResponsePacket.PACKET_ID;
+		if (packet instanceof C2S_ChunkCatchupRequestPacket) return C2S_ChunkCatchupRequestPacket.PACKET_ID;
+		if (packet instanceof C2S_RegionCatchupRequestPacket) return C2S_RegionCatchupRequestPacket.PACKET_ID;
 		throw new IllegalArgumentException("Unknown client packet class " + packet);
 	}
 
 	@Override
-	protected void encode(ChannelHandlerContext ctx, Packet packet, ByteBuf out) {
+	protected void encode(ChannelHandlerContext ctx, IPacket packet, ByteBuf out) {
 		try {
 			out.writeByte(getClientPacketId(packet));
 			packet.write(out);

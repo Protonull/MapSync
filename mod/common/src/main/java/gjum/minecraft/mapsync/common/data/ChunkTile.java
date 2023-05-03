@@ -1,6 +1,6 @@
 package gjum.minecraft.mapsync.common.data;
 
-import gjum.minecraft.mapsync.common.net.Packet;
+import gjum.minecraft.mapsync.common.net.packet.IPacket;
 import io.netty.buffer.ByteBuf;
 import net.minecraft.core.Registry;
 import net.minecraft.resources.ResourceKey;
@@ -29,7 +29,7 @@ public record ChunkTile(
 	 * without columns
 	 */
 	public void writeMetadata(ByteBuf buf) {
-		Packet.writeString(buf, dimension.location().toString());
+		IPacket.writeString(buf, dimension.location().toString());
 		buf.writeInt(x);
 		buf.writeInt(z);
 		buf.writeLong(timestamp);
@@ -46,7 +46,7 @@ public record ChunkTile(
 	}
 
 	public static ChunkTile fromBuf(ByteBuf buf) {
-		String dimensionStr = Packet.readString(buf);
+		String dimensionStr = IPacket.readString(buf);
 		var dimension = ResourceKey.create(Registry.DIMENSION_REGISTRY, new ResourceLocation(dimensionStr));
 		int x = buf.readInt();
 		int z = buf.readInt();

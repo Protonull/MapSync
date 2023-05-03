@@ -1,28 +1,31 @@
-package gjum.minecraft.mapsync.common.net;
+package gjum.minecraft.mapsync.common.net.packet;
 
 import io.netty.buffer.ByteBuf;
 import java.nio.charset.StandardCharsets;
+import org.apache.commons.lang3.NotImplementedException;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-public abstract class Packet {
-	public abstract void write(ByteBuf buf);
+public interface IPacket {
+	default void write(@NotNull ByteBuf buffer) {
+		throw new NotImplementedException();
+	}
 
-	public static byte[] readByteArray(final @NotNull ByteBuf buffer) {
+	static byte[] readByteArray(final @NotNull ByteBuf buffer) {
 		final var array = new byte[buffer.readInt()];
 		buffer.readBytes(array);
 		return array;
 	}
 
-	public static void writeByteArray(final @NotNull ByteBuf buffer,
-									  final byte @NotNull [] array) {
+	static void writeByteArray(final @NotNull ByteBuf buffer,
+							   final byte @NotNull [] array) {
 		buffer.writeInt(array.length);
 		buffer.writeBytes(array);
 	}
 
-	public static void writeString(final @NotNull ByteBuf buffer,
-								   final @Nullable String string) {
+	static void writeString(final @NotNull ByteBuf buffer,
+							final @Nullable String string) {
 		if (StringUtils.isEmpty(string)) {
 			buffer.writeInt(0);
 			return;
@@ -31,8 +34,7 @@ public abstract class Packet {
 		writeByteArray(buffer, bytes);
 	}
 
-	public static @NotNull String readString(final @NotNull ByteBuf buffer) {
+	static @NotNull String readString(final @NotNull ByteBuf buffer) {
 		return new String(readByteArray(buffer), StandardCharsets.UTF_8);
 	}
-
 }
