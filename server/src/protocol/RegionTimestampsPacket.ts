@@ -1,4 +1,4 @@
-import { BufWriter } from "./BufWriter";
+import { BufWriter } from "../deps/buffers";
 
 export interface RegionTimestampsPacket {
     type: "RegionTimestamps";

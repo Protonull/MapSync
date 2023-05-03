@@ -1,5 +1,5 @@
 import { CatchupChunk } from "../Catchup";
-import { BufWriter } from "./BufWriter";
+import { BufWriter } from "../deps/buffers";
 
 export interface CatchupPacket {
     type: "Catchup";

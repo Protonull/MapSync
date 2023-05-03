@@ -1,5 +1,4 @@
-import { BufReader } from "./BufReader";
-import { BufWriter } from "./BufWriter";
+import { BufReader, BufWriter } from "../deps/buffers";
 import { ChunkTilePacket } from "./ChunkTilePacket";
 import { EncryptionRequestPacket } from "./EncryptionRequestPacket";
 import { EncryptionResponsePacket } from "./EncryptionResponsePacket";

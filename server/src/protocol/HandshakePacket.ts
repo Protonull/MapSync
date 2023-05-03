@@ -1,4 +1,4 @@
-import { BufReader } from "./BufReader";
+import { BufReader } from "../deps/buffers";
 
 export interface HandshakePacket {
     type: "Handshake";

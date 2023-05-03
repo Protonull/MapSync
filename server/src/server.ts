@@ -8,8 +8,7 @@ import {
     type ClientPacket,
     type ServerPacket
 } from "./protocol";
-import { BufReader } from "./protocol/BufReader";
-import { BufWriter } from "./protocol/BufWriter";
+import { BufReader, BufWriter } from "./deps/buffers";
 import { EncryptionResponsePacket } from "./protocol/EncryptionResponsePacket";
 import { HandshakePacket } from "./protocol/HandshakePacket";
 

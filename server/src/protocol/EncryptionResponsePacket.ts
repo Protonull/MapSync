@@ -1,5 +1,4 @@
-import { BufReader } from "./BufReader";
-import { BufWriter } from "./BufWriter";
+import { BufReader, BufWriter } from "../deps/buffers";
 
 export interface EncryptionResponsePacket {
     type: "EncryptionResponse";
