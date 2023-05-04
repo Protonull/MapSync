@@ -1,3 +1,5 @@
+import { Packets } from "../protocol/mod";
+
 /**
  * Copies from the given buffer at a given offset and length.
  *
@@ -254,5 +256,50 @@ export class BufWriter {
     ): this {
         many(this);
         return this;
+    }
+}
+
+export class PacketBuilder extends BufWriter {
+    private constructor(
+        public readonly packet: Packets
+    ) {
+        super();
+    }
+
+    /**
+     * Returns the packet's length-prefixed buffer.
+     */
+    public override getBuffer(): Buffer {
+        const data = super.getBuffer();
+        const buffer = Buffer.allocUnsafe(data.length + 4);
+        buffer.writeUInt32BE(data.length, 0);
+        buffer.set(data, 4);
+        return buffer;
+    }
+
+    /**
+     * Starts building a new packet with the given id.
+     */
+    public static packet(
+        packet: Packets
+    ): PacketBuilder {
+        return new PacketBuilder(packet)
+            .writeUInt8(packet as number);
+    }
+
+    /**
+     * Pretends that the given buffer is a PacketBuilder. You will not be able
+     * to call write functions. This is merely a convenience function to send
+     * buffers as-is without having to build a new packet.
+     */
+    public static cast(
+        buffer: Buffer
+    ): PacketBuilder {
+        buffer = buffer.subarray();
+        buffer["packet"] = buffer.readUint8(0);
+        buffer["getBuffer"] = function getBuffer() {
+            return this;
+        };
+        return buffer as unknown as PacketBuilder;
     }
 }

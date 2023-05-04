@@ -1,18 +1,14 @@
 import node_crypto from "node:crypto";
 import node_net from "node:net";
 import node_util from "node:util";
-import * as errors from "./deps/errors";
-import { Main } from "./main";
+import { PacketHandler } from "./modes/mod";
 import { Mutex } from "async-mutex";
-import fetch from "node-fetch";
-import * as protocol from "./protocol";
-import { BufReader, BufWriter, duplicateSlice } from "./deps/buffers";
-import { EncryptionResponsePacket } from "./protocol/EncryptionResponsePacket";
-import { HandshakePacket } from "./protocol/HandshakePacket";
+import { Packets, getPacketName } from "./protocol/mod";
+import { BufReader, duplicateSlice, PacketBuilder } from "./deps/buffers";
+import * as metadata from "./metadata";
+import * as preAuthMode from "./modes/preauth";
 
 const { PORT = "12312", HOST = "127.0.0.1" } = process.env;
-
-type ProtocolHandler = Main; // TODO cleanup
 
 const FRAME_SIZE_BYTES = 4;
 const MAX_FRAME_SIZE = 1 << 24;
@@ -30,13 +26,12 @@ export class TcpServer {
     });
 
     public constructor(
-        private readonly handler: ProtocolHandler
+        public readonly config: metadata.Config
     ) {
         this.server = node_net.createServer({}, (socket) => {
-            const client = new TcpClient(socket, this, handler);
+            const client = new TcpClient(socket, this);
             this.clients.set(client.id, client);
             client.log("Connected from", socket.remoteAddress);
-            handler.handleClientConnected(client);
 
             socket.on("end", () => {
                 // This event is called when the other end signals the end of
@@ -92,17 +87,9 @@ export class TcpServer {
                             break;
                         }
                         lastOffset += FRAME_SIZE_BYTES; // Wait till here to increase the offset to allow for graceful break-and-remainder-copy
-                        try {
-                            const packetBuffer = duplicateSlice(receivedBuffer, lastOffset, packetLength);
-                            const packerReader = new BufReader(packetBuffer);
-                            const packet = protocol.decodePacket(packerReader);
-                            await client.handlePacketReceived(packet);
-                        }
-                        catch (e) {
-                            client.warn(e);
-                            client.kick("Error in packet handler");
-                            return;
-                        }
+                        await client.handlePacketReceived(new BufReader(
+                            duplicateSlice(receivedBuffer, lastOffset, packetLength)
+                        ));
                         lastOffset += packetLength;
                     }
 
@@ -141,6 +128,8 @@ export class TcpClient {
     /** contains mojang name once logged in */
     public name = "Client" + this.id;
 
+    public handler: PacketHandler = null!;
+
     public _auth?: Readonly<{
         uuid: string
         username: string
@@ -149,15 +138,12 @@ export class TcpClient {
     }>;
     public dimension?: string;
 
-    /** sent by client during handshake */
-    private claimedMojangName?: string;
-    private verifyToken?: Buffer;
-
     public constructor(
         private readonly socket: node_net.Socket,
-        private readonly server: TcpServer,
-        private readonly handler: ProtocolHandler
-    ) { }
+        public readonly server: TcpServer
+    ) {
+        preAuthMode.setStage1(this);
+    }
 
     public getAuth() {
         return this._auth ?? false;
@@ -179,110 +165,40 @@ export class TcpClient {
     }
 
     public async send(
-        packet: protocol.ServerPacket,
+        packet: PacketBuilder,
         doCrypto = true
     ) {
         if (doCrypto) this.requireAuth();
-        this.debug(`MapSync[${packet.type}] → ${this.name}`);
-        const writer = new BufWriter(); // TODO size hint
-        writer.writeUInt32(0); // set later, but reserve space in buffer
-        protocol.encodePacket(packet, writer);
-        let buffer = writer.getBuffer();
-        buffer.writeUInt32BE(buffer.length - 4, 0); // write into space reserved above
+        this.debug(`MapSync[${getPacketName(packet.packet)}] → ${this.name}`);
+        let buffer = packet.getBuffer();
         if (doCrypto) buffer = await this._auth!.encipher.update(buffer);
         this.socket.write(buffer);
     }
 
     public async handlePacketReceived(
-        packet: protocol.ClientPacket
+        reader: BufReader
     ) {
-        this.debug(`MapSync ← ${this.name}[${packet.type}]`);
-        if (this.getAuth() === false) { // not authenticated yet
-            // not authenticated yet
-            switch (packet.type) {
-                case "Handshake":
-                    return await this.handleHandshakePacket(packet);
-                case "EncryptionResponse":
-                    return await this.handleEncryptionResponsePacket(packet);
+        try {
+            const packetId = reader.readUInt8(),
+                packetType = Packets[packetId];
+            if (packetType === undefined) {
+                // noinspection ExceptionCaughtLocallyJS
+                throw new Error(
+                    "Unknown server←client packet [" +
+                    packetId +
+                    ":" +
+                    reader.readRemainder().toString("base64") +
+                    "]"
+                );
             }
-            throw new Error(
-                `Packet ${packet.type} from unauth'd client ${this.id}`
-            );
+            this.debug(`MapSync ← ${this.name}[${packetType}]`);
+            await this.handler(packetId, reader);
         }
-        else {
-            return await this.handler.handleClientPacketReceived(this, packet);
-        }
-    }
-
-    private async handleHandshakePacket(packet: HandshakePacket) {
-        if (this.getAuth() !== false) throw new Error(`Already authenticated`);
-        if (this.verifyToken) throw new Error(`Encryption already started`);
-        // TODO: Check "packet.modVersion" here
-        // TODO: Check "packet.gameAddress" here
-        this.claimedMojangName = packet.mojangName;
-        this.dimension = packet.dimension;
-        this.verifyToken = node_crypto.randomBytes(4);
-        await this.send({
-            type: "EncryptionRequest",
-            publicKey: this.server.PUBLIC_KEY_BUFFER,
-            verifyToken: this.verifyToken
-        }, false);
-    }
-
-    private async handleEncryptionResponsePacket(
-        pkt: EncryptionResponsePacket
-    ) {
-        if (this.getAuth() !== false) {
-            throw new Error(`Already authenticated`);
-        }
-        if (!this.claimedMojangName) {
-            throw new Error(`Encryption has not started: no mojangName`);
-        }
-        if (!this.verifyToken) {
-            throw new Error(`Encryption has not started: no verifyToken`);
-        }
-
-        const verifyToken = this.server.decrypt(pkt.verifyToken);
-        if (!this.verifyToken.equals(verifyToken)) {
-            this.kick(
-                `Incorrect verifyToken! Expected [${this.verifyToken}], got [${verifyToken}]`
-            );
+        catch (err) {
+            this.warn(err);
+            this.kick("Something errored server side while packet handling!");
             return;
         }
-
-        const secret = this.server.decrypt(pkt.sharedSecret);
-        const shaHex = node_crypto
-            .createHash("sha1")
-            .update(secret)
-            .update(this.server.PUBLIC_KEY_BUFFER)
-            .digest()
-            .toString("hex");
-
-        const auth = await fetchHasJoined(this.claimedMojangName, shaHex);
-        if (auth instanceof Error) {
-            this.kick("Mojang auth failed");
-            this.warn(auth);
-            return;
-        }
-
-        this.log("Authenticated as " + auth.name);
-        this.name += ":" + auth.name;
-        this._auth = {
-            uuid: auth.uuid,
-            username: auth.name,
-            encipher: node_crypto.createCipheriv(
-                "aes-128-cfb8",
-                secret,
-                secret
-            ),
-            decipher: node_crypto.createDecipheriv(
-                "aes-128-cfb8",
-                secret,
-                secret
-            )
-        };
-
-        await this.handler.handleClientAuthenticated(this);
     }
 
     public debug(...args: any[]) {
@@ -297,29 +213,4 @@ export class TcpClient {
     public warn(...args: any[]) {
         console.error(`[${this.name}]`, ...args);
     }
-}
-
-async function fetchHasJoined(
-    username: string,
-    shaHex: string
-) {
-    // if auth is disabled, return a "usable" item
-    if (process.env["DISABLE_AUTH"] === "true")
-        return { name: username, uuid: `AUTH-DISABLED-${username}` }
-
-    return await fetch(`https://sessionserver.mojang.com/session/minecraft/hasJoined?username=${username}&serverId=${shaHex}`)
-        .then((res) => {
-            if (res.status === 204) {
-                throw new Error("Auth returned 204 (empty)");
-            }
-            return res.json();
-        })
-        .then((res: { name: string; id: string; }) => ({
-            name: res.name,
-            uuid: res.id.replace(
-                /^(........)-?(....)-?(....)-?(....)-?(............)$/,
-                "$1-$2-$3-$4-$5"
-            )
-        }))
-        .catch((err) => errors.ensureError(err));
 }

@@ -101,7 +101,6 @@ export async function getChunkTimestamps(dimension: string, regions: Pos2D[]) {
         )
         .selectFrom("regions")
         .select([
-            "dimension",
             "x",
             "z",
             "timestamp"
