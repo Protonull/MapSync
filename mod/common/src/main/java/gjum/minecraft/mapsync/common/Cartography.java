@@ -1,8 +1,6 @@
 package gjum.minecraft.mapsync.common;
 
 import gjum.minecraft.mapsync.common.data.*;
-import gjum.minecraft.mapsync.common.utilities.SHA1;
-import io.netty.buffer.Unpooled;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
@@ -29,14 +27,7 @@ public class Cartography {
 		}
 		int dataVersion = 1;
 
-		// TODO speedup: don't serialize twice (once here, once later when writing to network)
-		var columnsBuf = Unpooled.buffer();
-		ChunkTile.writeColumns(columns, columnsBuf);
-		byte[] dataHash = SHA1.hash((digest) -> {
-			digest.update(columnsBuf.nioBuffer());
-		});
-
-		return new ChunkTile(dimension, cx, cz, timestamp, dataVersion, dataHash, columns);
+		return new ChunkTile(dimension, cx, cz, timestamp, dataVersion, columns);
 	}
 
 	public static BlockColumn blockColumnFromChunk(LevelChunk chunk, BlockPos.MutableBlockPos pos) {

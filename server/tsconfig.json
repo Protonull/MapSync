@@ -12,7 +12,7 @@
         "module": "CommonJS",
         "moduleResolution": "node",
         "noImplicitReturns": true,
-        "noFallthroughCasesInSwitch": true,
+        "noFallthroughCasesInSwitch": false,
         "noImplicitAny": false,
         "outDir": "dist",
         "resolveJsonModule": true,

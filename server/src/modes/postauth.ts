@@ -1,3 +1,4 @@
+import node_crypto from "node:crypto";
 import node_util from "node:util";
 import { BufReader, PacketBuilder } from "../deps/buffers";
 import { UnsupportedPacketException } from "./mod";
@@ -9,6 +10,17 @@ import { Pos2D } from "../protocol/structs";
 type BufferHandler = (reader: BufReader) => Promise<void>;
 type HandlerManager = Map<number, BufferHandler>;
 
+function setSelfConsumePacketHandler(
+    manager: HandlerManager,
+    packet: number,
+    handler: BufferHandler
+) {
+    manager.set(packet, async (reader) => {
+        manager.delete(packet);
+        await handler(reader);
+    });
+}
+
 export function set(
     client: TcpClient
 ) {
@@ -18,22 +30,49 @@ export function set(
         Packets.ChunkTile,
         async (reader) => {
             const auth = client.requireAuth();
-            const relayPacket = PacketBuilder.cast(reader.buffer);
+
             const dimension = reader.readString();
+            const chunkX = reader.readInt32();
+            const chunkZ = reader.readInt32();
+            const timestamp = reader.readUInt64();
+            const chunkVersion = reader.readUInt16();
+            reader.readBufWithLen(); // Just yeet the client hash into the void
+            const chunkData = reader.readRemainder();
+
             if (dimension !== client.dimension) {
                 client.warn("Client is attempting to send chunks for dimension [" + dimension + "] when they're currently in [" + client.dimension + "]");
                 return;
             }
+
+            const chunkHash = node_crypto
+                .createHash("sha1")
+                .update(chunkData)
+                .digest();
+
             await database.storeChunkData(
                 dimension,
-                reader.readInt32(), // Chunk X
-                reader.readInt32(), // Chunk Z
+                chunkX,
+                chunkZ,
                 auth.uuid,
-                reader.readUInt64(), // Timestamp
-                reader.readUInt16(), // Chunk version
-                reader.readBufWithLen(), // Chunk hash
-                reader.readRemainder() // Chunk data
+                timestamp,
+                chunkVersion,
+                chunkHash,
+                chunkData
             );
+
+            // We have to reconstruct the packet since we cannot trust the
+            // client hash enough to relay it to every connected client.
+            const relayPacket = PacketBuilder.cast(PacketBuilder
+                    .packet(Packets.ChunkTile)
+                    .writeString(dimension)
+                    .writeInt32(chunkX)
+                    .writeInt32(chunkZ)
+                    .writeUInt64(timestamp)
+                    .writeUInt16(chunkVersion)
+                    .writeBufWithLen(chunkHash)
+                    .writeBufRaw(chunkData)
+                    .getBuffer());
+
             // TODO small timeout, then skip if other client already has it
             for (const otherClient of Object.values(client.server.clients)) {
                 if (client === otherClient) continue;
@@ -61,9 +100,7 @@ function applyRegionCatchupHandler(
     handlers: HandlerManager,
     client: TcpClient
 ) {
-    handlers.set(Packets.RegionCatchup, async (reader) => {
-        handlers.delete(Packets.RegionCatchup);
-
+    setSelfConsumePacketHandler(handlers, Packets.RegionCatchup, async (reader) => {
         const dimension = reader.readString();
         if (dimension !== client.dimension) {
             client.warn("Client is attempting to catch up dimension [" + dimension + "] when they're currently in [" + client.dimension + "]");
@@ -105,9 +142,7 @@ function applyCatchupRequestHandler(
     handlers: HandlerManager,
     client: TcpClient
 ) {
-    handlers.set(Packets.CatchupRequest, async (reader) => {
-        handlers.delete(Packets.CatchupRequest);
-
+    setSelfConsumePacketHandler(handlers, Packets.CatchupRequest, async (reader) => {
         const dimension = reader.readString();
         if (dimension !== client.dimension) {
             client.warn("Client is attempting to catch up dimension [" + dimension + "] when they're currently in [" + client.dimension + "]");

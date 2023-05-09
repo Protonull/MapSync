@@ -18,6 +18,24 @@ export function setStage1(
         const gameAddress = reader.readString(); // The server-address for the Minecraft server they're connected to.
         const dimension = reader.readString(); // The dimension the client is in.
 
+        // noinspection FallThroughInSwitchStatementJS
+        switch (modVersion) {
+            // TODO: MAKE SURE TO INCLUDE ANY NEW VERSION THAT STILL HAS THE SAME PROTOCOL!
+            case "${version}+fabric":
+            case "${version}+forge":
+                client.warn("Client is using a legacy client.");
+            case "2.0.2-1.18.2":
+                break;
+            default:
+                client.kick(`Unsupported mod version [${modVersion}]`);
+                return;
+        }
+
+        if (gameAddress !== client.server.config.gameAddress) {
+            client.kick(`Client not playing on the correct Minecraft server [${gameAddress}]`);
+            return;
+        }
+
         client.dimension = dimension;
 
         const verifyToken = node_crypto.randomBytes(4);
@@ -65,6 +83,7 @@ export function setStage2(
             client.kick(`Incorrect verifyToken! Expected [${expectedVerifyToken}], got [${receivedVerifyToken}]`);
             return;
         }
+
         if (process.env["DISABLE_AUTH"] === "true") {
             client._auth = createAuth(
                 "AUTH-DISABLED-" + claimedUsername,

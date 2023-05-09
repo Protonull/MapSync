@@ -226,7 +226,7 @@ public abstract class MapSyncMod {
 	public void handleSharedChunk(ChunkTile chunkTile) {
 		debugLog("received shared chunk: " + chunkTile.chunkPos());
 		for (SyncClient syncClient : getSyncClients()) {
-			syncClient.setServerKnownChunkHash(chunkTile.chunkPos(), chunkTile.dataHash());
+			syncClient.setServerKnownChunkHash(chunkTile.chunkPos(), chunkTile.generateHash());
 		}
 
 		var dimensionState = getDimensionState();

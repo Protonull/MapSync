@@ -42,7 +42,9 @@ public class SyncClient {
 
 	public synchronized void sendChunkTile(ChunkTile chunkTile) {
 		var serverKnownHash = getServerKnownChunkHash(chunkTile.chunkPos());
-		if (Arrays.equals(chunkTile.dataHash(), serverKnownHash)) {
+
+		final var chunkHash = chunkTile.generateHash();
+		if (Arrays.equals(chunkHash, serverKnownHash)) {
 			debugLog("server already has chunk (hash) " + chunkTile.chunkPos());
 			return; // server already has this chunk
 		}
@@ -50,7 +52,7 @@ public class SyncClient {
 		send(new BID_ChunkDataPacket(chunkTile));
 
 		// assume packet will reach server eventually
-		setServerKnownChunkHash(chunkTile.chunkPos(), chunkTile.dataHash());
+		setServerKnownChunkHash(chunkTile.chunkPos(), chunkHash);
 	}
 
 	public synchronized byte[] getServerKnownChunkHash(ChunkPos chunkPos) {
