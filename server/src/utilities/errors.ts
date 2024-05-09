@@ -1,5 +1,4 @@
 import node_os from "node:os";
-import node_utils from "node:util";
 
 export enum ErrorType {
     FileExists,
@@ -36,7 +35,7 @@ export function ensureError(error: any): Error {
         case "bigint":
             return new Error(String(error));
     }
-    return new Error(node_utils.inspect(error));
+    return new Error(Bun.inspect(error));
 }
 
 /**

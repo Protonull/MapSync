@@ -7,6 +7,8 @@ import { ChunkTilePacket } from "./protocol/ChunkTilePacket";
 import { TcpClient, TcpServer } from "./server";
 import { RegionCatchupPacket } from "./protocol/RegionCatchupPacket";
 
+import { SyncServer } from "./network/sync-server.ts";
+
 let config: metadata.Config = null!;
 Promise.resolve().then(async () => {
     await database.setup();
@@ -18,7 +20,10 @@ Promise.resolve().then(async () => {
     await metadata.loadWhitelist();
     await metadata.loadUuidCache();
 
-    new Main();
+    const server = new SyncServer();
+
+    const { HOST = "127.0.0.1", PORT = "12312" } = process.env;
+    server.start(HOST, parseInt(PORT));
 });
 
 type ProtocolClient = TcpClient; // TODO cleanup
