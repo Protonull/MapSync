@@ -7,6 +7,7 @@
     "type": "module",
     "module": "src/main.ts",
     "scripts": {
+        "bench": "bun src/bench/benchmark.ts",
         "format": "prettier -w .",
         "test": "bun test",
         "start": "bun src/main.ts",
@@ -21,6 +22,7 @@
     },
     "devDependencies": {
         "@types/bun": "^1.1.1",
+        "mitata": "^0.1.11",
         "prettier": "^3.0.1"
     },
     "prettier": {
