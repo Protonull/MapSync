@@ -5,6 +5,9 @@
 	"compatibilityLevel": "JAVA_17",
 	"mixins": [],
 	"client": [
+		"voxelmap.CachedRegionAccessor",
+		"voxelmap.PersistentMapAccessor",
+		"voxelmap.VoxelMapMixin",
 		"MixinClientPacketListener"
 	],
 	"server": [],
