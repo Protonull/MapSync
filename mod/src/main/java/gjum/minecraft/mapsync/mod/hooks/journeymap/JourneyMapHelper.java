@@ -8,15 +8,8 @@ public class JourneyMapHelper {
 	static {
 		try {
 			Class.forName("journeymap.client.JourneymapClient");
-			try {
-				// check it's a recent version
-				Class.forName("journeymap.client.model.NBTChunkMD");
-				isJourneyMapNotAvailable = false;
-			} catch (NoClassDefFoundError | ClassNotFoundException ignored2) {
-				isJourneyMapNotAvailable = true;
-				System.err.println("Please update JourneyMap to at least 5.8.3");
-			}
-		} catch (NoClassDefFoundError | ClassNotFoundException ignored) {
+		}
+		catch (NoClassDefFoundError | ClassNotFoundException ignored) {
 			isJourneyMapNotAvailable = true;
 		}
 	}

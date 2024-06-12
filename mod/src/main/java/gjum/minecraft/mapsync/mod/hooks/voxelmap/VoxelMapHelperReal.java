@@ -1,200 +1,146 @@
 package gjum.minecraft.mapsync.mod.hooks.voxelmap;
 
 import com.mamiyaotaru.voxelmap.VoxelConstants;
+import com.mamiyaotaru.voxelmap.WaypointManager;
 import com.mamiyaotaru.voxelmap.persistent.CachedRegion;
 import com.mamiyaotaru.voxelmap.persistent.CompressibleMapData;
 import com.mamiyaotaru.voxelmap.persistent.EmptyCachedRegion;
 import com.mamiyaotaru.voxelmap.persistent.PersistentMap;
-import gjum.minecraft.mapsync.mod.Utils;
+import gjum.minecraft.mapsync.mod.data.BlockColumn;
 import gjum.minecraft.mapsync.mod.data.BlockInfo;
 import gjum.minecraft.mapsync.mod.data.ChunkTile;
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
+import gjum.minecraft.mapsync.mod.mixins.voxelmap.CachedRegionAccessor;
+import gjum.minecraft.mapsync.mod.mixins.voxelmap.PersistentMapAccessor;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.block.Blocks;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public class VoxelMapHelperReal {
-	// TODO use mixins to access package-/private fields/methods
-
-	private static Field cachedRegionsField;
-	private static Field cachedRegionsPoolField;
-	private static Field worldField;
-
-	private static Field regionDataField;
-	private static Field liveChunksUpdatedField;
-	private static Field dataUpdatedField;
-	private static Field regionLoadedField;
-	private static Method regionLoadMethod;
-
-	private static Field threadLockField;
-
-	static {
-		try {
-			cachedRegionsField = PersistentMap.class.getDeclaredField("cachedRegions");
-			cachedRegionsField.setAccessible(true);
-			cachedRegionsPoolField = PersistentMap.class.getDeclaredField("cachedRegionsPool");
-			cachedRegionsPoolField.setAccessible(true);
-			worldField = PersistentMap.class.getDeclaredField("world");
-			worldField.setAccessible(true);
-
-			regionDataField = CachedRegion.class.getDeclaredField("data");
-			regionDataField.setAccessible(true);
-			liveChunksUpdatedField = CachedRegion.class.getDeclaredField("liveChunksUpdated");
-			liveChunksUpdatedField.setAccessible(true);
-			dataUpdatedField = CachedRegion.class.getDeclaredField("dataUpdated");
-			dataUpdatedField.setAccessible(true);
-			regionLoadedField = CachedRegion.class.getDeclaredField("loaded");
-			regionLoadedField.setAccessible(true);
-			regionLoadMethod = CachedRegion.class.getDeclaredMethod("load");
-			regionLoadMethod.setAccessible(true);
-
-			threadLockField = CachedRegion.class.getDeclaredField("threadLock");
-			threadLockField.setAccessible(true);
-		} catch (Throwable e) {
-			e.printStackTrace();
-		}
-	}
-
 	static boolean isMapping() {
-		if (worldField == null) return false;
-		try {
-			PersistentMap map = VoxelConstants.getVoxelMapInstance().getPersistentMap();
-			var world = (ClientLevel) worldField.get(map);
-			return world != null;
-		} catch (IllegalAccessException ignored) {
-			return false;
-		}
+		return ((PersistentMapAccessor) VoxelConstants.getVoxelMapInstance().getPersistentMap()).mapsync$getWorld() != null;
 	}
 
 	// TODO update multiple chunks in one region at once
 	// TODO which thread should this run on?
-	static boolean updateWithChunkTile(ChunkTile chunkTile) {
-		try {
-			if (!isMapping()) return false;
-
-			int rx = chunkTile.x() >> 4;
-			int rz = chunkTile.z() >> 4;
-			var region = getRegion(rx, rz);
-
-			var lock = (ReentrantLock) threadLockField.get(region);
-			lock.lock();
-			try {
-				var mapData = (CompressibleMapData) regionDataField.get(region);
-
-				int x0 = (chunkTile.x() * 16) & 0xff;
-				int z0 = (chunkTile.z() * 16) & 0xff;
-
-				var biomeReg = Utils.getBiomeRegistry();
-
-				int i = 0;
-				for (int z = z0; z < z0 + 16; ++z) {
-					for (int x = x0; x < x0 + 16; ++x) {
-						var col = chunkTile.columns()[i++];
-
-						mapData.setBiomeID(x, z, biomeReg.getId(col.biome()));
-
-						int light = 0xf0 | col.light();
-						mapData.setTransparentLight(x, z, light);
-						mapData.setFoliageLight(x, z, light);
-						mapData.setLight(x, z, light);
-						mapData.setOceanFloorLight(x, z, light);
-
-						setLayerStates(mapData, x, z, col.layers());
-					}
-				}
-
-				liveChunksUpdatedField.set(region, true);
-				dataUpdatedField.set(region, true);
-
-				// render imagery
-				region.refresh(false);
-			} finally {
-				lock.unlock();
-			}
-
-			return true;
-		} catch (Throwable e) {
-			e.printStackTrace();
+	static boolean updateWithChunkTile(
+		final @NotNull ChunkTile chunkTile
+	) {
+		final PersistentMap map = VoxelConstants.getVoxelMapInstance().getPersistentMap();
+		final var mapAccessor = (PersistentMapAccessor) map;
+		final ClientLevel currentLevel = mapAccessor.mapsync$getWorld();
+		if (currentLevel == null) {
 			return false;
 		}
-	}
 
-	private static final BlockInfo EMPTY = new BlockInfo(0, Blocks.AIR.defaultBlockState());
+		final int regionX = chunkTile.x() >> 4;
+		final int regionZ = chunkTile.z() >> 4;
 
-	private static void setLayerStates(CompressibleMapData mapData, int x, int z, List<BlockInfo> layers) {
-		BlockInfo transparent = EMPTY;
-		BlockInfo foliage = EMPTY;
-		BlockInfo surface = EMPTY;
-		BlockInfo seafloor = EMPTY;
+		final WaypointManager waypointManager = VoxelConstants.getVoxelMapInstance().getWaypointManager();
+		final String worldName = waypointManager.getCurrentWorldName();
+		final String subWorldName = waypointManager.getCurrentSubworldDescriptor(false);
 
-		// XXX
-		if (layers.size() > 1) transparent = layers.get(0);
-		surface = layers.get(layers.size() - 1);
-		// trees hack
-		if (layers.get(0).state().is(BlockTags.LEAVES)) {
-			surface = layers.get(0);
-		}
+		final String regionKey = regionX + "," + regionZ;
 
-		mapData.setTransparentHeight(x, z, transparent.y());
-		mapData.setTransparentBlockstate(x, z, transparent.state());
-		mapData.setFoliageHeight(x, z, foliage.y());
-		mapData.setFoliageBlockstate(x, z, foliage.state());
-		mapData.setHeight(x, z, surface.y());
-		mapData.setBlockstate(x, z, surface.state());
-		mapData.setOceanFloorHeight(x, z, seafloor.y());
-		mapData.setOceanFloorBlockstate(x, z, seafloor.state());
-	}
+		@Nullable CachedRegion region = null;
 
-	@NotNull
-	private static CachedRegion getRegion(int rx, int rz)
-			throws IllegalAccessException, InvocationTargetException {
-		PersistentMap map = VoxelConstants.getVoxelMapInstance().getPersistentMap();
-
-		@SuppressWarnings("unchecked")
-		var cachedRegions = (ConcurrentHashMap<String, CachedRegion>) cachedRegionsField.get(map);
-
-		@SuppressWarnings("unchecked")
-		var cachedRegionsPool = (List<CachedRegion>) cachedRegionsPoolField.get(map);
-
-		var world = (ClientLevel) worldField.get(map);
-
-		String worldName = VoxelConstants.getVoxelMapInstance().getWaypointManager().getCurrentWorldName();
-		String subWorldName = VoxelConstants.getVoxelMapInstance().getWaypointManager().getCurrentSubworldDescriptor(false);
-
-		String key = rx + "," + rz;
-
-		@Nullable CachedRegion region;
-
-		// the following synchronized{} section matches VoxelMap's internal logic
-		// see com.mamiyaotaru.voxelmap.persistent.PersistentMap.getRegions
-		//noinspection SynchronizationOnLocalVariableOrMethodParameter
+		/**
+		 * This is sketch, but it's what VoxelMap itself does here:
+		 * {@link com.mamiyaotaru.voxelmap.persistent.PersistentMap#getRegions(int, int, int, int)}
+		 */
+		final ConcurrentHashMap<String, CachedRegion> cachedRegions = mapAccessor.mapsync$getCachedRegions();
 		synchronized (cachedRegions) {
-			region = cachedRegions.get(key);
+			region = cachedRegions.get(regionKey);
 			// could be race condition if the region is not fully loaded at this point
 			if (region == null || region instanceof EmptyCachedRegion) {
-				region = new CachedRegion(map, key, world, worldName, subWorldName, rx, rz);
+				cachedRegions.put(regionKey, region = new CachedRegion(
+					map,
+					regionKey,
+					currentLevel,
+					worldName,
+					subWorldName,
+					regionX,
+					regionZ
+				));
 
-				cachedRegions.put(key, region);
-
-				//noinspection SynchronizationOnLocalVariableOrMethodParameter
+				final List<CachedRegion> cachedRegionsPool = mapAccessor.mapsync$getCachedRegionsPool();
 				synchronized (cachedRegionsPool) {
 					cachedRegionsPool.add(region);
 				}
 			}
 		}
 
-		// TODO which thread should this run on?
-		if (!((Boolean) regionLoadedField.get(region))) {
-			regionLoadMethod.invoke(region);
+		final var regionAccessor = (CachedRegionAccessor) region;
+		if (!regionAccessor.mapsync$isLoaded()) {
+			regionAccessor.mapsync$load();
 		}
 
-		return region;
+		final var biomeRegistry = currentLevel.registryAccess().registry(Registries.BIOME).orElseThrow();
+
+		final ReentrantLock lock = regionAccessor.mapsync$getThreadLock(); lock.lock(); try {
+			final CompressibleMapData data = regionAccessor.mapsync$getData();
+
+			final int x0 = (chunkTile.x() << 16) & 0xFF;
+			final int z0 = (chunkTile.z() << 16) & 0xFF;
+
+			int i = 0;
+			for (int z = z0; z < z0 + 16; ++z) for (int x = x0; x < x0 + 16; ++x) {
+				final BlockColumn blockColumn = chunkTile.columns()[i++];
+
+				data.setBiomeID(x, z, biomeRegistry.getId(blockColumn.biome()));
+
+				final int light = 0xF0 | blockColumn.light();
+				data.setLight(x, z, light);
+				data.setTransparentLight(x, z, light);
+				data.setFoliageLight(x, z, light);
+				data.setOceanFloorLight(x, z, light);
+
+				BlockInfo transparent = newAirBlock();
+				BlockInfo foliage = newAirBlock();
+				BlockInfo surface = newAirBlock();
+				BlockInfo seafloor = newAirBlock();
+
+				final List<BlockInfo> blockColumnLayers = blockColumn.layers();
+
+				// XXX
+				final BlockInfo zerothBlock = blockColumnLayers.get(0);
+				if (blockColumnLayers.size() > 1) {
+					transparent = zerothBlock;
+				}
+				surface = blockColumnLayers.get(blockColumnLayers.size() - 1);
+				// trees hack
+				if (zerothBlock.state().is(BlockTags.LEAVES)) {
+					surface = zerothBlock;
+				}
+
+				data.setTransparentHeight(x, z, transparent.y());
+				data.setTransparentBlockstate(x, z, transparent.state());
+				data.setFoliageHeight(x, z, foliage.y());
+				data.setFoliageBlockstate(x, z, foliage.state());
+				data.setHeight(x, z, surface.y());
+				data.setBlockstate(x, z, surface.state());
+				data.setOceanFloorHeight(x, z, seafloor.y());
+				data.setOceanFloorBlockstate(x, z, seafloor.state());
+			}
+
+			regionAccessor.mapsync$setLiveChunksUpdated(true);
+			regionAccessor.mapsync$setDataUpdated(true);
+
+			// render imagery
+			region.refresh(false);
+		}
+		finally {
+			lock.unlock();
+		}
+		return true;
+	}
+
+	private static @NotNull BlockInfo newAirBlock() {
+		return new BlockInfo(0, Blocks.AIR.defaultBlockState());
 	}
 }

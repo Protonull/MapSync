@@ -53,7 +53,7 @@ public class RenderQueue {
 				}
 
 				if (!JourneyMapHelper.isJourneyMapNotAvailable && !JourneyMapHelper.isMapping()
-						|| !VoxelMapHelper.isVoxelMapNotAvailable && !VoxelMapHelper.isMapping()
+						|| !VoxelMapHelper.isModAvailable && !VoxelMapHelper.isMapping()
 				) {
 					MapSyncMod.debugLog("render is waiting til map mod is ready");
 					Thread.sleep(1000);
