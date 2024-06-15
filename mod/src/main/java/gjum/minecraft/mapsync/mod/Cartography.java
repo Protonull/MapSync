@@ -3,8 +3,10 @@ package gjum.minecraft.mapsync.mod;
 import gjum.minecraft.mapsync.mod.data.BlockColumn;
 import gjum.minecraft.mapsync.mod.data.BlockInfo;
 import gjum.minecraft.mapsync.mod.data.ChunkTile;
-import gjum.minecraft.mapsync.mod.utilities.Hasher;
+import gjum.minecraft.mapsync.mod.utilities.Shortcuts;
+import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
@@ -31,11 +33,13 @@ public class Cartography {
 		int dataVersion = 1;
 
 		// TODO speedup: don't serialize twice (once here, once later when writing to network)
-		var columnsBuf = Unpooled.buffer();
-		ChunkTile.writeColumns(columns, columnsBuf);
-		final byte[] dataHash = Hasher.sha1()
-				.update(columnsBuf)
-				.generateHash();
+		final byte[] dataHash; {
+			final ByteBuf chunkBuf = Unpooled.buffer();
+			ChunkTile.writeColumns(columns, chunkBuf);
+			final MessageDigest md = Shortcuts.sha1();
+			md.update(chunkBuf.nioBuffer());
+			dataHash = md.digest();
+		}
 
 		return new ChunkTile(dimension, cx, cz, timestamp, dataVersion, dataHash, columns);
 	}
