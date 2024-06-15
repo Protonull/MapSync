@@ -9,8 +9,8 @@ import gjum.minecraft.mapsync.mod.network.packet.ChunkTilePacket;
 import gjum.minecraft.mapsync.mod.network.packet.ClientboundEncryptionRequestPacket;
 import gjum.minecraft.mapsync.mod.network.packet.ServerboundEncryptionResponsePacket;
 import gjum.minecraft.mapsync.mod.network.packet.ServerboundHandshakePacket;
-import gjum.minecraft.mapsync.mod.utilities.Hasher;
 import gjum.minecraft.mapsync.mod.utilities.MagicValues;
+import gjum.minecraft.mapsync.mod.utilities.Shortcuts;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
@@ -22,6 +22,7 @@ import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.handler.codec.LengthFieldPrepender;
 import java.security.InvalidKeyException;
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
 import java.util.ArrayList;
@@ -261,11 +262,12 @@ public class SyncClient {
 
 			if (!FabricLoader.getInstance().isDevelopmentEnvironment()) {
 				// note that this is different from minecraft (we get no negative hashes)
-				final String shaHex = HexFormat.of().formatHex(Hasher.sha1()
-						.update(sharedSecret)
-						.update(packet.publicKey.getEncoded())
-						.generateHash()
-				);
+				final String shaHex; {
+					final MessageDigest md = Shortcuts.sha1();
+					md.update(sharedSecret);
+					md.update(packet.publicKey.getEncoded());
+					shaHex = HexFormat.of().formatHex(md.digest());
+				}
 
 				final User session = Minecraft.getInstance().getUser();
 				Minecraft.getInstance().getMinecraftSessionService().joinServer(
