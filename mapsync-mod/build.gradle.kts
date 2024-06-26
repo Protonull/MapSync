@@ -95,6 +95,9 @@ tasks {
                 )
             }
         }
+        filesMatching("assets/mapsync/lang/en_us.json") {
+            expand("mod_name" to project.extra["mod_name"])
+        }
         filesMatching("constants/mapsync/MOD_VERSION") {
             expand("mod_version" to project.version)
         }
