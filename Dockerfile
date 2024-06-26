@@ -4,15 +4,15 @@ FROM node:18-alpine AS base
 WORKDIR /usr/src/app/
 
 # contains various scripts, so include in all images
-COPY ./server/package.json /usr/src/app/package.json
+COPY ./mapsync-server/package.json /usr/src/app/package.json
 
 FROM base AS build
 
-COPY ./server/yarn.lock /usr/src/app/yarn.lock
+COPY ./mapsync-server/yarn.lock /usr/src/app/yarn.lock
 RUN yarn
 
 # copy source as late as possible, to reuse docker cache with node_modules
-COPY ./server /usr/src/app
+COPY ./mapsync-server /usr/src/app
 RUN yarn build
 
 FROM build AS test

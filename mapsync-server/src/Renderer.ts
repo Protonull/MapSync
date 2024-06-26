@@ -10,7 +10,7 @@ export async function renderTile(
     const allChunks = await database.getRegionChunks(dimension, tileX, tileZ);
 
     const proc = spawn(
-        "../render/target/release/civmap-render",
+        "../mapsync-render/target/release/civmap-render",
         [String(tileX), String(tileZ), "tiles"],
         { cwd: "../render" }, // so render can find blocks.json
     );

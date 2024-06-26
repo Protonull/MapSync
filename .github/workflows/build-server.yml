@@ -3,10 +3,10 @@ name: Build+Test Server
 on:
   push:
     paths:
-      - "server/**/*"
+      - "mapsync-server/**/*"
   pull_request:
     paths:
-      - "server/**/*"
+      - "mapsync-server/**/*"
 
 jobs:
   build:
@@ -22,8 +22,8 @@ jobs:
           node-version: ${{ matrix.version }}
           # cache: "yarn"
       - run: yarn
-        working-directory: ./server
+        working-directory: ./mapsync-server
       - run: yarn build
-        working-directory: ./server
+        working-directory: ./mapsync-server
       - run: yarn test
-        working-directory: ./server
+        working-directory: ./mapsync-server
