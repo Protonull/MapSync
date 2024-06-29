@@ -16,14 +16,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Optional;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.multiplayer.ServerData;
-import net.minecraft.network.protocol.game.ClientboundLoginPacket;
 import net.minecraft.network.protocol.game.ClientboundRespawnPacket;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -43,17 +41,11 @@ public final class MapSyncMod implements ClientModInitializer {
 			"category.map-sync"
 	);
 
-	private @NotNull List<SyncClient> syncClients = new ArrayList<>();
 	/**
 	 * Tracks state and render thread for current mc dimension.
 	 * Never access this directly; always go through `getDimensionState()`.
 	 */
 	private @Nullable DimensionState dimensionState;
-	/**
-	 * Tracks configuration for current mc server.
-	 * Never access this directly; always go through `getServerConfig()`.
-	 */
-	private @Nullable ServerConfig serverConfig;
 
 	@Override
 	public void onInitializeClient() {
@@ -78,73 +70,27 @@ public final class MapSyncMod implements ClientModInitializer {
 		if (dimensionState != null) dimensionState.onTick();
 	}
 
-	public void handleConnectedToServer(ClientboundLoginPacket packet) {
-		getSyncClients();
-	}
-
 	public void handleRespawn(ClientboundRespawnPacket packet) {
 		debugLog("handleRespawn");
 		// TODO tell sync server to only send chunks for this dimension now
+	}
+
+	public Optional<SyncState> getSyncState() {
+		if (Minecraft.getInstance().getConnection() instanceof final SyncState.Holder holder) {
+			return Optional.of(holder.getMapSyncState());
+		}
+		return Optional.empty();
 	}
 
 	/**
 	 * only null when not connected to a server
 	 */
 	public @Nullable ServerConfig getServerConfig() {
-		final ServerData currentServer = Minecraft.getInstance().getCurrentServer();
-		if (currentServer == null) {
-			serverConfig = null;
-			return null;
-		}
-		String gameAddress = currentServer.ip;
-		if (!gameAddress.contains(":")) gameAddress += ":25565";
-
-		if (serverConfig == null) {
-			serverConfig = ServerConfig.load(gameAddress);
-		}
-		return serverConfig;
+		return getSyncState().map((syncState) -> syncState.serverConfig).orElse(null);
 	}
 
 	public @NotNull List<SyncClient> getSyncClients() {
-		var serverConfig = getServerConfig();
-		if (serverConfig == null) return shutDownSyncClients();
-
-		var syncServerAddresses = serverConfig.getSyncServerAddresses();
-		if (syncServerAddresses.isEmpty()) return shutDownSyncClients();
-
-		// will be filled with clients that are still wanted (address) and are still connected
-		var existingClients = new HashMap<String, SyncClient>();
-
-		for (SyncClient client : syncClients) {
-			if (client.isShutDown) continue;
-			// avoid reconnecting to same sync server, to keep shared state (expensive to resync)
-			if (!client.gameAddress.equals(serverConfig.gameAddress)) {
-				debugLog("Disconnecting sync client; different game server");
-				client.shutDown();
-			} else if (!syncServerAddresses.contains(client.address)) {
-				debugLog("Disconnecting sync client; different sync address");
-				client.shutDown();
-			} else {
-				existingClients.put(client.address, client);
-			}
-		}
-
-		syncClients = syncServerAddresses.stream().map(address -> {
-			var client = existingClients.get(address);
-			if (client == null) client = new SyncClient(address, serverConfig.gameAddress);
-			client.autoReconnect = true;
-			return client;
-		}).collect(Collectors.toList());
-
-		return syncClients;
-	}
-
-	public List<SyncClient> shutDownSyncClients() {
-		for (SyncClient client : syncClients) {
-			client.shutDown();
-		}
-		syncClients.clear();
-		return Collections.emptyList();
+		return getSyncState().map((syncState) -> Collections.unmodifiableList(syncState.syncConnections)).orElseGet(List::of);
 	}
 
 	/**

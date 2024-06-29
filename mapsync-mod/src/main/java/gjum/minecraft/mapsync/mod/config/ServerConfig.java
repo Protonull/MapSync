@@ -3,7 +3,6 @@ package gjum.minecraft.mapsync.mod.config;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.annotations.Expose;
-import gjum.minecraft.mapsync.mod.MapSyncMod;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -29,12 +28,9 @@ public class ServerConfig extends JsonConfig {
 				.filter(Objects::nonNull)
 				.map(String::trim)
 				.filter(address -> !address.isEmpty())
-				.map(address -> address.contains(":") ? address : (address + ":12312"))
 				.collect(Collectors.toCollection(ArrayList::new));
 
 		saveLater();
-
-		MapSyncMod.getMod().getSyncClients(); // trigger dis/connection if address changed
 	}
 
 	public static ServerConfig load(String gameAddress) {
