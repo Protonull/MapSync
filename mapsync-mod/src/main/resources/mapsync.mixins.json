@@ -8,7 +8,8 @@
 		"voxelmap.CachedRegionAccessor",
 		"voxelmap.PersistentMapAccessor",
 		"voxelmap.VoxelMapMixin",
-		"MixinClientPacketListener"
+		"MixinClientPacketListener",
+		"SyncStateHolderMixin"
 	],
 	"server": [],
 	"injectors": {

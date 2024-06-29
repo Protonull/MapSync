@@ -1,6 +1,5 @@
 package gjum.minecraft.mapsync.mod;
 
-import gjum.minecraft.mapsync.mod.config.ServerConfig;
 import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -13,7 +12,7 @@ import org.jetbrains.annotations.NotNull;
 public class ModGui extends Screen {
 	final Screen parentScreen;
 
-	ServerConfig serverConfig = MapSyncMod.getMod().getServerConfig();
+	private final SyncState syncState = MapSyncMod.getMod().getSyncState().orElseThrow();
 
 	int innerWidth = 300;
 	int left;
@@ -50,23 +49,22 @@ public class ModGui extends Screen {
 					.build()
 			);
 
-			if (serverConfig != null) {
-				addWidget(syncServerAddressField = new EditBox(font,
-						left,
-						top + 40,
-						innerWidth - 110, 20,
-						Component.literal("Sync Server Address")));
-				syncServerAddressField.setMaxLength(256);
-				syncServerAddressField.setValue(String.join(" ",
-						serverConfig.getSyncServerAddresses()));
-
-				addRenderableWidget(
-					syncServerConnectBtn = Button.builder(Component.literal("Connect"), this::connectClicked)
-						.pos(this.right - 100, this.top + 40)
-						.width(100)
-						.build()
-				);
+			addWidget(syncServerAddressField = new EditBox(font,
+					left,
+					top + 40,
+					innerWidth - 110, 20,
+					Component.literal("Sync Server Address")));
+			syncServerAddressField.setMaxLength(256);
+			synchronized (this.syncState) {
+				this.syncServerAddressField.setValue(String.join(" ", this.syncState.serverConfig.getSyncServerAddresses()));
 			}
+
+			addRenderableWidget(
+				syncServerConnectBtn = Button.builder(Component.literal("Connect"), this::connectClicked)
+					.pos(this.right - 100, this.top + 40)
+					.width(100)
+					.build()
+			);
 		} catch (Throwable e) {
 			e.printStackTrace();
 		}
@@ -76,9 +74,10 @@ public class ModGui extends Screen {
 		try {
 			if (syncServerAddressField == null) return;
 			var addresses = List.of(syncServerAddressField.getValue().split("[^-_.:A-Za-z0-9]+"));
-			serverConfig.setSyncServerAddresses(addresses);
-			MapSyncMod.getMod().shutDownSyncClients();
-			MapSyncMod.getMod().getSyncClients();
+			synchronized (this.syncState) {
+				this.syncState.serverConfig.setSyncServerAddresses(addresses);
+				this.syncState.updateSyncConnections();
+			}
 			btn.active = false;
 		} catch (Throwable e) {
 			e.printStackTrace();

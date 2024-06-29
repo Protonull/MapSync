@@ -8,7 +8,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.protocol.game.ClientboundBlockDestructionPacket;
 import net.minecraft.network.protocol.game.ClientboundBlockUpdatePacket;
 import net.minecraft.network.protocol.game.ClientboundLevelChunkWithLightPacket;
-import net.minecraft.network.protocol.game.ClientboundLoginPacket;
 import net.minecraft.network.protocol.game.ClientboundRespawnPacket;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -17,16 +16,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(ClientPacketListener.class)
 public abstract class MixinClientPacketListener {
-	@Inject(method = "handleLogin", at = @At("RETURN"))
-	protected void onHandleLogin(ClientboundLoginPacket packet, CallbackInfo ci) {
-		if (!Minecraft.getInstance().isSameThread()) return; // will be called again on mc thread in a moment
-		try {
-			MapSyncMod.getMod().handleConnectedToServer(packet);
-		} catch (Throwable e) {
-			Utils.printErrorRateLimited(e);
-		}
-	}
-
 	@Inject(method = "handleRespawn", at = @At("RETURN"))
 	protected void onHandleRespawn(ClientboundRespawnPacket packet, CallbackInfo ci) {
 		if (!Minecraft.getInstance().isSameThread()) return; // will be called again on mc thread in a moment
