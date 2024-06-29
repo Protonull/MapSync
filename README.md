@@ -46,11 +46,10 @@ You can control who has access to a Sync Server by editing its `allowed-users.tx
 <summary>System Install</summary>
 <br />
 
-- install recent nodejs (~17)
-- clone code, `cd server`
-- `npm install`
-- `npm run build` -- this has to be run after every time the code is edited
-- `npm run start`
+- install [Bun](https://bun.sh/)
+- clone code, `cd mapsync-server`
+- `bun install`
+- `bun run start`
 - to stop, press Ctrl+C twice
 </details>
 
